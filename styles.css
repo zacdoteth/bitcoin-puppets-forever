@@ -46,15 +46,11 @@ body {
   position: relative;
   z-index: 1;
   width: 100%;
-  height: 100vh;
+  height: 40vh;
   min-height: 300px;
   flex-shrink: 0;
   overflow: hidden;
   background: var(--dark);
-  transition: height 1.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.scene-container.settled {
-  height: 40vh;
 }
 
 #scene-canvas {
@@ -641,16 +637,6 @@ body {
   flex: 1;
   overflow-y: auto;
   min-height: 0;
-  opacity: 0;
-  transform: translateY(30px);
-  transition: opacity 0.8s ease-out 0.2s,
-              transform 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.2s;
-  pointer-events: none;
-}
-.marketplace.revealed {
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
 }
 
 /* ═══ FILTER BAR ═══ */
@@ -668,15 +654,6 @@ body {
   backdrop-filter: blur(12px);
   border-radius: 10px;
   border: 1px solid rgba(255,255,255,0.03);
-  opacity: 0;
-  transform: translateY(-10px);
-  transition: opacity 0.5s ease-out, transform 0.5s ease-out;
-}
-.marketplace.revealed .filter-bar {
-  opacity: 1;
-  transform: translateY(0);
-  transition-delay: 0.15s;
-}
 
 .filter-label {
   font-size: 0.5rem;
@@ -913,11 +890,8 @@ body {
 /* ═══ RESPONSIVE ═══ */
 @media (max-width: 768px) {
   .scene-container {
-    height: 100vh;
-    min-height: 520px;
-  }
-  .scene-container.settled {
     height: 80vh;
+    min-height: 520px;
   }
 
   .scene-stats {

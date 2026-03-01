@@ -131,11 +131,12 @@ class SceneManager {
 
     this._camera.updateProjectionMatrix();
 
-    // Power on the CRT midway through the zoom (40% in) — REVEAL BEGINS
+    // Power on the CRT midway through the zoom (40% in)
     if (progress > 0.4 && !this._screenPoweringOn && !this._screenPoweredOn) {
       this._screenPoweringOn = true;
       this._screenOnProgress = 0;
-      this._triggerRevealSequence();
+      // Reveal the NFT grid in sync with CRT power-on
+      if (window._shedApp && window._shedApp.revealGrid) window._shedApp.revealGrid();
     }
 
     if (progress >= 1) {
@@ -144,24 +145,6 @@ class SceneManager {
       this._camera.fov = this._targetFov;
       this._camera.updateProjectionMatrix();
     }
-  }
-
-  // Three-phase reveal: scene shrinks → marketplace fades in → grid cards cascade
-  _triggerRevealSequence() {
-    if (this._revealTriggered) return;
-    this._revealTriggered = true;
-    // Phase 1: Scene container shrinks 100vh → 40vh
-    const container = document.getElementById('scene-container');
-    if (container) container.classList.add('settled');
-    // Phase 2: Marketplace fades in (+300ms)
-    setTimeout(() => {
-      const mp = document.getElementById('marketplace');
-      if (mp) mp.classList.add('revealed');
-    }, 300);
-    // Phase 3: Grid cards cascade with shelfDrop (+800ms)
-    setTimeout(() => {
-      if (window._shedApp && window._shedApp.revealGrid) window._shedApp.revealGrid();
-    }, 800);
   }
 
   // ─── SCENE ───
@@ -1195,8 +1178,8 @@ class SceneManager {
             loading.classList.add('hidden');
             setTimeout(() => loading.style.display = 'none', 600);
           }
-          // Fallback: same three-phase reveal even without 3D
-          this._triggerRevealSequence();
+          // Reveal grid as fallback when 3D scene fails to load
+          if (window._shedApp && window._shedApp.revealGrid) window._shedApp.revealGrid();
         }, 1000);
       }
     );
