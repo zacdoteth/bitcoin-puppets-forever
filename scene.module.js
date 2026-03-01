@@ -90,15 +90,55 @@ class SceneManager {
 
   _applyResponsiveCamera() {
     if (this._isMobile) {
-      this._camera.fov = 28;
+      this._targetFov = 28;
       this._baseCameraPos.set(0, 1.8, 7.5);
       this._baseCameraTarget.set(0, 1.5, 0);
     } else {
-      this._camera.fov = 21;
+      this._targetFov = 21;
       this._baseCameraPos.set(0, 1.8, 6);
       this._baseCameraTarget.set(0, 1.5, 0);
     }
+
+    // Start zoomed out for intro (will animate to _targetFov)
+    this._introFov = this._isMobile ? 65 : 90;
+    this._camera.fov = this._introFov;
+    this._introActive = false;
+    this._introStartTime = 0;
+    this._introDuration = 2.8; // seconds
     this._camera.updateProjectionMatrix();
+  }
+
+  // Cinematic intro: FOV 90 → 21 with easeInOutCubic
+  _startIntro() {
+    if (this._introActive || this._introDone) return;
+    this._introActive = true;
+    this._introDone = false;
+    this._introStartTime = this._clock.elapsedTime;
+  }
+
+  _updateIntro(t) {
+    if (!this._introActive) return;
+
+    const elapsed = t - this._introStartTime;
+    let progress = Math.min(elapsed / this._introDuration, 1);
+
+    // easeOutExpo — fast start, dramatic slow finish (cinematic pull-in)
+    const eased = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+
+    this._camera.fov = this._introFov + (this._targetFov - this._introFov) * eased;
+
+    // Subtle camera drift down during zoom (settling into position)
+    const driftY = (1 - eased) * 0.3;
+    this._camera.position.y = this._baseCameraPos.y + driftY + this._mouse.y * 0.08;
+
+    this._camera.updateProjectionMatrix();
+
+    if (progress >= 1) {
+      this._introActive = false;
+      this._introDone = true;
+      this._camera.fov = this._targetFov;
+      this._camera.updateProjectionMatrix();
+    }
   }
 
   // ─── SCENE ───
@@ -1052,12 +1092,12 @@ class SceneManager {
 
         // Hardcoded head offset based on known model geometry
         // (bounding box can be skewed by arms/bunny ears)
-        this._headOffsetY = 2.55;
+        this._headOffsetY = 1.7;
         this._bubbleVec = new THREE.Vector3();
 
         if (this._setupCharGUI) this._setupCharGUI();
 
-        // Hide loading
+        // Hide loading + start cinematic intro
         setTimeout(() => {
           updateStatus('Welcome to the Shed!', 100);
           const loading = document.getElementById('scene-loading');
@@ -1065,8 +1105,12 @@ class SceneManager {
             loading.classList.add('hidden');
             setTimeout(() => loading.style.display = 'none', 600);
           }
-          // Show first bubble
-          if (window._shedApp) window._shedApp.showInitialBubble();
+          // Start the FOV zoom intro
+          this._startIntro();
+          // Show first bubble after zoom settles
+          setTimeout(() => {
+            if (window._shedApp) window._shedApp.showInitialBubble();
+          }, 1800);
         }, 400);
       },
       (progress) => {
@@ -1532,10 +1576,16 @@ class SceneManager {
     this._mouse.x += (this._targetMouse.x - this._mouse.x) * 0.05;
     this._mouse.y += (this._targetMouse.y - this._mouse.y) * 0.05;
 
+    // Cinematic intro zoom
+    this._updateIntro(t);
+
     // Camera subtle sway
     if (this._camera) {
       this._camera.position.x = this._baseCameraPos.x + this._mouse.x * 0.15;
-      this._camera.position.y = this._baseCameraPos.y + this._mouse.y * 0.08;
+      // Only apply mouse Y sway if intro isn't controlling Y
+      if (!this._introActive) {
+        this._camera.position.y = this._baseCameraPos.y + this._mouse.y * 0.08;
+      }
       this._camera.lookAt(this._baseCameraTarget);
     }
 
@@ -1596,6 +1646,9 @@ class SceneManager {
     // Update bubble position to track character head
     this._updateBubblePos();
 
+    // Update CRT buy panel to track monitor screen
+    this._updateCRTPanel();
+
     // Live clock
     this._updateClockHands();
 
@@ -1616,6 +1669,56 @@ class SceneManager {
 
     this._bubbleEl.style.left = pos.x + 'px';
     this._bubbleEl.style.top = pos.y + 'px';
+  }
+
+  // ─── CRT SCREEN → PIXEL RECT ───
+  // Returns { x, y, width, height } of the CRT screen in pixel coords relative to canvas
+  getCRTScreenRect() {
+    if (!this._screenMesh || !this._camera) return null;
+
+    const rect = this._canvas.getBoundingClientRect();
+    const _v = new THREE.Vector3();
+
+    // Get world position of screen center
+    this._screenMesh.getWorldPosition(_v);
+    const centerWorld = _v.clone();
+
+    // Project center
+    _v.project(this._camera);
+    const cx = (_v.x * 0.5 + 0.5) * rect.width;
+    const cy = (-_v.y * 0.5 + 0.5) * rect.height;
+
+    // Get screen dimensions in world space (account for parent scale)
+    const geo = this._screenMesh.geometry.parameters;
+    const parentScale = this._crtModel ? this._crtModel.scale.x : 1;
+    const halfW = (geo.width * parentScale) / 2;
+    const halfH = (geo.height * parentScale) / 2;
+
+    // Project top-left and bottom-right corners
+    const tl = new THREE.Vector3(centerWorld.x - halfW, centerWorld.y + halfH, centerWorld.z);
+    tl.project(this._camera);
+    const tlx = (tl.x * 0.5 + 0.5) * rect.width;
+    const tly = (-tl.y * 0.5 + 0.5) * rect.height;
+
+    const br = new THREE.Vector3(centerWorld.x + halfW, centerWorld.y - halfH, centerWorld.z);
+    br.project(this._camera);
+    const brx = (br.x * 0.5 + 0.5) * rect.width;
+    const bry = (-br.y * 0.5 + 0.5) * rect.height;
+
+    return { x: tlx, y: tly, width: brx - tlx, height: bry - tly, cx, cy };
+  }
+
+  _updateCRTPanel() {
+    if (!this._crtPanel) this._crtPanel = document.getElementById('crt-buy-panel');
+    if (!this._crtPanel) return;
+
+    const r = this.getCRTScreenRect();
+    if (!r) return;
+
+    this._crtPanel.style.left = r.x + 'px';
+    this._crtPanel.style.top = r.y + 'px';
+    this._crtPanel.style.width = r.width + 'px';
+    this._crtPanel.style.height = r.height + 'px';
   }
 }
 

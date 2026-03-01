@@ -68,41 +68,22 @@
   <!-- Wallet -->
   <button class="wallet-btn" id="wallet-btn" type="button">CONNECT</button>
 
-  <!-- Speech bubble (direct child of scene-container for pixel-accurate positioning) -->
+  <!-- Speech bubble (tracks puppet head for idle chatter) -->
   <div class="char-bubble" id="char-bubble">Welcome to the Shed!</div>
 
-  <!-- Scene overlay (buy panel) -->
-  <div class="scene-overlay">
-    <!-- Buy panel (right side) -->
-    <div class="buy-panel" id="buy-panel">
-      <div class="buy-panel-empty" id="buy-empty">
-        <div class="buy-empty-icon">👇</div>
-        <div class="buy-empty-text">Select a puppet to inspect...</div>
+  <!-- RPG DIALOGUE BOX (bottom of scene, JRPG style) -->
+  <div class="rpg-dialogue" id="rpg-dialogue">
+    <div class="rpg-dialogue-box">
+      <div class="rpg-speaker">
+        <span class="rpg-speaker-icon">🎭</span>
+        <span class="rpg-speaker-name">Le Puppeteer</span>
       </div>
-      <div class="buy-panel-active" id="buy-active" style="display:none">
-        <div class="buy-header">
-          <div class="buy-info">
-            <div class="buy-name" id="buy-name"></div>
-            <div class="buy-meta">
-              <span class="buy-rarity" id="buy-rarity"></span>
-              <span class="buy-col" id="buy-col"></span>
-            </div>
-          </div>
-          <button class="buy-close" id="buy-close" type="button">&#10005;</button>
-        </div>
-        <div class="buy-price-row">
-          <span class="buy-price" id="buy-price"></span>
-          <span class="buy-btc">&#8383;</span>
-          <span class="buy-usd" id="buy-usd"></span>
-        </div>
-        <div class="buy-traits" id="buy-traits"></div>
-        <div class="buy-actions">
-          <button class="btn-buy" id="btn-buy" type="button">BUY NOW</button>
-          <button class="btn-offer" id="btn-offer" type="button">OFFER</button>
-        </div>
-      </div>
+      <div class="rpg-text" id="rpg-text"></div>
+      <div class="rpg-advance" id="rpg-advance">▼</div>
     </div>
+    <div class="rpg-choices" id="rpg-choices"></div>
   </div>
+
 </div>
 
 <!-- MARKETPLACE -->

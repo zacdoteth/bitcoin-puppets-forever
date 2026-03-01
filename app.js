@@ -472,6 +472,144 @@ function renderGrid() {
   });
 }
 
+// ═══ RPG DIALOGUE SYSTEM ═══
+let rpgTyping = false;
+let rpgTypeTimer = null;
+
+function buildShopkeeperDialogue(nft) {
+  const displayRarity = nft.rarity.charAt(0).toUpperCase() + nft.rarity.slice(1);
+  const isListed = nft.price > 0;
+  const priceBtc = formatBTC(nft.price);
+  const priceUsd = Math.round((nft.price / 1e8) * btcUsd).toLocaleString();
+
+  // Rarity-based intro
+  const intros = {
+    common: ["Ah, a solid pick!", "Classic choice, fren.", "Every collection starts here."],
+    uncommon: ["Ooh, not bad!", "You've got an eye for this.", "Uncommon vibes!"],
+    rare: ["Now we're talking!", "A rare gem right here.", "Smart collectors know."],
+    epic: ["Whoa, epic find!", "THIS one has character.", "Now that's a keeper!"],
+    legendary: ["A LEGENDARY piece!", "Few have held one of these.", "Diamond hands required."],
+    mythic: ["Among the rarest in the land!", "A mythic! *chef's kiss*", "You found something special."],
+    Genesis: ["Pure O.P.I.U.M.!", "Only 777 exist. A masterpiece.", "From the fringes of the karmic grid."]
+  };
+
+  const rarKey = nft.col === 'OPIUM' ? 'Genesis' : nft.rarity;
+  const introPool = intros[rarKey] || intros.common;
+  const intro = introPool[Math.abs(hashStr(nft.id)) % introPool.length];
+
+  let msg = `${intro} ${nft.name} — ${displayRarity}.`;
+
+  if (isListed) {
+    msg += ` Going for ${priceBtc}\u20bf — that's about $${priceUsd}.`;
+  } else {
+    msg += ` Not listed right now... but you could make an offer!`;
+  }
+
+  return msg;
+}
+
+function showRPGDialogue(nft) {
+  const dialogue = document.getElementById('rpg-dialogue');
+  const textEl = document.getElementById('rpg-text');
+  const choicesEl = document.getElementById('rpg-choices');
+  const advanceEl = document.getElementById('rpg-advance');
+  if (!dialogue || !textEl) return;
+
+  // Reset
+  clearTimeout(rpgTypeTimer);
+  textEl.innerHTML = '';
+  choicesEl.classList.remove('show');
+  choicesEl.innerHTML = '';
+  advanceEl.classList.remove('show');
+  dialogue.classList.add('show');
+  rpgTyping = true;
+
+  // Hide the idle speech bubble during RPG dialogue
+  const bubble = document.getElementById('char-bubble');
+  if (bubble) bubble.classList.remove('show');
+
+  const msg = buildShopkeeperDialogue(nft);
+  const chars = [...msg];
+  let idx = 0;
+
+  function typeNext() {
+    if (idx >= chars.length) {
+      rpgTyping = false;
+      // Show choices after typing finishes
+      setTimeout(() => showRPGChoices(nft), 200);
+      return;
+    }
+    const ch = chars[idx];
+    textEl.textContent += ch;
+    idx++;
+
+    let delay = 22;
+    if ('.!?'.includes(ch)) delay = 180;
+    else if (',;:—'.includes(ch)) delay = 90;
+
+    rpgTypeTimer = setTimeout(typeNext, delay);
+  }
+
+  rpgTypeTimer = setTimeout(typeNext, 100);
+}
+
+function showRPGChoices(nft) {
+  const choicesEl = document.getElementById('rpg-choices');
+  if (!choicesEl) return;
+
+  const isListed = nft.price > 0;
+  const priceBtc = formatBTC(nft.price);
+
+  let choicesHTML = '';
+
+  if (isListed) {
+    choicesHTML += `<button class="rpg-choice" data-action="buy">
+      <span class="rpg-arrow">\u25b6</span>
+      <span class="rpg-choice-label">Buy for ${priceBtc}\u20bf</span>
+    </button>`;
+  }
+
+  choicesHTML += `<button class="rpg-choice" data-action="offer">
+    <span class="rpg-arrow">\u25b6</span>
+    <span class="rpg-choice-label">Make an Offer</span>
+  </button>`;
+
+  choicesHTML += `<button class="rpg-choice" data-action="look">
+    <span class="rpg-arrow">\u25b6</span>
+    <span class="rpg-choice-label">Just Looking</span>
+  </button>`;
+
+  choicesEl.innerHTML = choicesHTML;
+  choicesEl.classList.add('show');
+
+  // Wire up choice actions
+  choicesEl.querySelectorAll('.rpg-choice').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const action = btn.dataset.action;
+      if (action === 'buy') {
+        hideRPGDialogue();
+        if (!walletConnected) { openWalletModal(); return; }
+        openBuyDrawer(nft);
+      } else if (action === 'offer') {
+        hideRPGDialogue();
+        if (!walletConnected) { openWalletModal(); return; }
+        showBubble("Offers coming soon, fren!", 2500, true);
+      } else {
+        hideRPGDialogue();
+        deselectNFT();
+        showBubble("Take your time! I'll be right here.", 3000, true);
+      }
+    });
+  });
+}
+
+function hideRPGDialogue() {
+  clearTimeout(rpgTypeTimer);
+  rpgTyping = false;
+  const dialogue = document.getElementById('rpg-dialogue');
+  if (dialogue) dialogue.classList.remove('show');
+}
+
 // ═══ NFT SELECTION ═══
 function selectNFT(nft) {
   if (selectedNFT && selectedNFT.id === nft.id) {
@@ -480,34 +618,6 @@ function selectNFT(nft) {
   }
 
   selectedNFT = nft;
-  const rc = RARITY_COLORS[nft.rarity] || '#888';
-  const displayRarity = nft.rarity.charAt(0).toUpperCase() + nft.rarity.slice(1);
-  const displayPrice = formatBTC(nft.price);
-
-  // Update buy panel
-  const buyEmpty = document.getElementById('buy-empty');
-  const buyActive = document.getElementById('buy-active');
-  if (buyEmpty) buyEmpty.style.display = 'none';
-  if (buyActive) {
-    buyActive.style.display = 'block';
-    buyActive.style.borderColor = rc + '30';
-    buyActive.style.boxShadow = `0 8px 30px rgba(0,0,0,0.25), 0 0 24px ${rc}08`;
-  }
-
-  document.getElementById('buy-name').textContent = nft.name;
-
-  const rarityEl = document.getElementById('buy-rarity');
-  rarityEl.textContent = displayRarity;
-  rarityEl.style.color = rc;
-  rarityEl.style.borderColor = rc + '40';
-  rarityEl.style.background = rc + '15';
-
-  document.getElementById('buy-col').textContent = nft.col;
-  document.getElementById('buy-price').textContent = nft.price > 0 ? displayPrice : 'Not Listed';
-  document.getElementById('buy-usd').textContent = nft.price > 0 ? '\u2248 $' + Math.round(nft.priceBTC * btcUsd).toLocaleString() : '';
-
-  const traitsEl = document.getElementById('buy-traits');
-  traitsEl.innerHTML = nft.traits.map(t => `<span class="trait-tag">${t}</span>`).join('');
 
   // Update 3D scene — load real image onto CRT
   if (window._sceneManager) {
@@ -515,13 +625,10 @@ function selectNFT(nft) {
     window._sceneManager.loadNFTImage(nft.imageUrl);
   }
 
-  // Show lore bubble
-  const rarKey = nft.col === 'OPIUM' ? 'Genesis' : nft.rarity;
-  const msgs = NFT_MSGS[rarKey] || NFT_MSGS.common;
-  const msgIdx = Math.abs(hashStr(nft.id)) % msgs.length;
-  showBubble(msgs[msgIdx], 5000);
+  // Show RPG dialogue (the shopkeeper speaks!)
+  showRPGDialogue(nft);
 
-  // Highlight active card without re-rendering the whole grid
+  // Highlight active card
   updateActiveCard();
 
   // Scroll to top of scene on mobile
@@ -532,11 +639,7 @@ function selectNFT(nft) {
 
 function deselectNFT() {
   selectedNFT = null;
-
-  const buyEmpty = document.getElementById('buy-empty');
-  const buyActive = document.getElementById('buy-active');
-  if (buyEmpty) buyEmpty.style.display = 'block';
-  if (buyActive) buyActive.style.display = 'none';
+  hideRPGDialogue();
 
   if (window._sceneManager) {
     window._sceneManager.setSelectedNFT(null);
@@ -916,9 +1019,6 @@ function fireConfetti() {
 
 // ═══ BUY PANEL BUTTONS ═══
 function initBuyPanel() {
-  const closeBtn = document.getElementById('buy-close');
-  if (closeBtn) closeBtn.addEventListener('click', deselectNFT);
-
   // Wire up marketplace API status events
   if (window._marketAPI) {
     window._marketAPI.onStatus((status, data) => {
@@ -934,28 +1034,9 @@ function initBuyPanel() {
     });
   }
 
-  // BUY NOW opens the drawer
-  const buyBtn = document.getElementById('btn-buy');
-  if (buyBtn) {
-    buyBtn.addEventListener('click', () => {
-      if (!walletConnected) {
-        openWalletModal();
-        return;
-      }
-      if (!selectedNFT) return;
-      if (selectedNFT.price <= 0) {
-        showBubble("This puppet isn't listed for sale yet!", 3000, true);
-        return;
-      }
-      openBuyDrawer(selectedNFT);
-    });
-  }
-
   // Drawer: confirm purchase
   const drawerCta = document.getElementById('drawer-cta');
-  if (drawerCta) {
-    drawerCta.addEventListener('click', () => executeBuy());
-  }
+  if (drawerCta) drawerCta.addEventListener('click', () => executeBuy());
 
   // Drawer: close
   const drawerClose = document.getElementById('drawer-close');
@@ -971,39 +1052,6 @@ function initBuyPanel() {
   // Drawer: success back button
   const successBack = document.getElementById('success-back');
   if (successBack) successBack.addEventListener('click', closeBuyDrawer);
-
-  // OFFER button
-  let offerMode = false;
-  const offerBtn = document.getElementById('btn-offer');
-  if (offerBtn) {
-    offerBtn.addEventListener('click', () => {
-      if (!walletConnected) {
-        openWalletModal();
-        return;
-      }
-      if (!selectedNFT) return;
-
-      offerMode = !offerMode;
-      const existing = document.querySelector('.offer-input-row');
-      if (existing) { existing.remove(); offerMode = false; return; }
-
-      const actionsEl = document.querySelector('.buy-actions');
-      if (!actionsEl) return;
-      const row = document.createElement('div');
-      row.className = 'offer-input-row';
-      row.innerHTML = '<input class="offer-input" type="number" step="0.00001" min="0" placeholder="Offer in BTC" id="offer-amount"><button class="btn-offer-submit" id="btn-offer-submit">SEND</button>';
-      actionsEl.after(row);
-
-      row.querySelector('#btn-offer-submit').addEventListener('click', () => {
-        const amount = parseFloat(document.getElementById('offer-amount').value);
-        if (!amount || amount <= 0) { showBubble("Enter a valid offer amount!", 2000, true); return; }
-        showBubble("Offer of " + amount + " BTC on " + selectedNFT.name + " - coming soon!", 3000, true);
-        row.remove();
-        offerMode = false;
-      });
-    });
-  }
-
 }
 
 // ═══ INIT ═══
