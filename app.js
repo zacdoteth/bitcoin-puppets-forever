@@ -27,6 +27,7 @@ let typewriterTimer = null;
 let introComplete = false;
 let isLoading = true;
 let loadError = null;
+let gridRevealed = false;
 let btcUsd = 84000; // fallback, updated live
 
 const RARITY_COLORS = {
@@ -365,14 +366,18 @@ function renderGrid() {
   const count = document.getElementById('filter-count');
   if (!grid) return;
 
-  // Loading state
+  // Loading state — hide grid until scene intro finishes
   if (isLoading) {
-    grid.innerHTML = Array.from({ length: 12 }, (_, i) =>
-      `<div class="nft-card skeleton" style="animation-delay:${i * 60}ms">
-        <div class="nft-card-frame"><div class="nft-card-img-wrap"><div class="skeleton-img"></div></div></div>
-        <div class="nft-card-info"><div class="skeleton-text"></div><div class="skeleton-text short"></div></div>
-      </div>`
-    ).join('');
+    if (!gridRevealed) {
+      grid.innerHTML = '';
+    } else {
+      grid.innerHTML = Array.from({ length: 12 }, (_, i) =>
+        `<div class="nft-card skeleton" style="animation-delay:${i * 60}ms">
+          <div class="nft-card-frame"><div class="nft-card-img-wrap"><div class="skeleton-img"></div></div></div>
+          <div class="nft-card-info"><div class="skeleton-text"></div><div class="skeleton-text short"></div></div>
+        </div>`
+      ).join('');
+    }
     if (count) count.textContent = '...';
     if (empty) empty.style.display = 'none';
     return;
@@ -421,6 +426,9 @@ function renderGrid() {
 
   if (empty) empty.style.display = 'none';
 
+  // If reveal already played, skip animation on re-renders
+  const skipAnim = gridRevealed;
+
   grid.innerHTML = filtered.map((nft, i) => {
     const isGenesis = nft.col === 'OPIUM';
     const isActive = selectedNFT && selectedNFT.id === nft.id;
@@ -429,8 +437,12 @@ function renderGrid() {
     const isListed = nft.price > 0;
     const displayPrice = isListed ? formatBTC(nft.price) + '\u20bf' : 'Unlisted';
 
+    const cardStyle = skipAnim
+      ? 'opacity:1;transform:none;'
+      : `animation-delay:${i * 50}ms;`;
+
     return `
-      <div class="nft-card ${isActive ? 'active' : ''}" data-id="${nft.id}" style="animation-delay:${i * 30}ms; ${isActive ? `border-color:${rc}50; box-shadow: 0 0 20px ${rc}15` : ''}">
+      <div class="nft-card ${isActive ? 'active' : ''}" data-id="${nft.id}" style="${cardStyle} ${isActive ? `border-color:${rc}50; box-shadow: 0 0 20px ${rc}15` : ''}">
         <div class="nft-card-frame ${isGenesis ? 'gold' : ''}">
           <div class="nft-card-img-wrap">
             <img class="nft-card-img" src="${nft.imageUrl}" alt="${nft.name}" loading="lazy" onerror="this.style.display='none'">
@@ -457,6 +469,11 @@ function renderGrid() {
       if (nft) selectNFT(nft);
     });
   });
+
+  // Apply reveal class if grid has been revealed by scene intro
+  if (gridRevealed) {
+    grid.classList.add('nft-grid--revealed');
+  }
 }
 
 // ═══ RPG DIALOGUE SYSTEM ═══
@@ -1210,6 +1227,12 @@ function initBuyPanel() {
 
 // ═══ INIT ═══
 window._shedApp = {
+  revealGrid() {
+    if (gridRevealed) return;
+    gridRevealed = true;
+    const grid = document.getElementById('nft-grid');
+    if (grid) grid.classList.add('nft-grid--revealed');
+  },
   showInitialBubble() {
     const sequence = [
       { delay: 600, msg: "Welcome to the Shed!", dur: 4000 },

@@ -1,9 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+// Post-processing imports removed — bloom strength was 0, saving 3 extra render passes per frame
 // GUI loaded dynamically only when ?debug is in URL
 
 /* ═══════════════════════════════════════════════
@@ -47,9 +44,7 @@ class SceneManager {
     this._initCamera();
     this._initScene();
     this._initLights();
-    if (this._quality === 'high') {
-      try { this._initPostProcessing(); } catch(e) { console.warn('Post-processing failed:', e); }
-    }
+    // Post-processing removed — bloom was strength 0 (no visible effect), saves 3 extra render passes/frame
     this._buildEnvironment();
     this._buildDustParticles();
     this._loadProps();
@@ -69,13 +64,13 @@ class SceneManager {
       alpha: false,
       powerPreference: 'high-performance'
     });
-    this._renderer.setPixelRatio(Math.min(window.devicePixelRatio, this._quality === 'high' ? 2 : 1.5));
+    this._renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     this._renderer.toneMapping = THREE.LinearToneMapping;
     this._renderer.toneMappingExposure = 2.01;
     this._renderer.outputColorSpace = THREE.SRGBColorSpace;
     if (this._quality === 'high') {
       this._renderer.shadowMap.enabled = true;
-      this._renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      this._renderer.shadowMap.type = THREE.PCFShadowMap; // faster than PCFSoft, visually close
     }
     this._resize();
   }
@@ -136,10 +131,11 @@ class SceneManager {
 
     this._camera.updateProjectionMatrix();
 
-    // Power on the CRT midway through the zoom (40% in)
+    // Power on the CRT midway through the zoom (40% in) — REVEAL BEGINS
     if (progress > 0.4 && !this._screenPoweringOn && !this._screenPoweredOn) {
       this._screenPoweringOn = true;
       this._screenOnProgress = 0;
+      this._triggerRevealSequence();
     }
 
     if (progress >= 1) {
@@ -148,6 +144,24 @@ class SceneManager {
       this._camera.fov = this._targetFov;
       this._camera.updateProjectionMatrix();
     }
+  }
+
+  // Three-phase reveal: scene shrinks → marketplace fades in → grid cards cascade
+  _triggerRevealSequence() {
+    if (this._revealTriggered) return;
+    this._revealTriggered = true;
+    // Phase 1: Scene container shrinks 100vh → 40vh
+    const container = document.getElementById('scene-container');
+    if (container) container.classList.add('settled');
+    // Phase 2: Marketplace fades in (+300ms)
+    setTimeout(() => {
+      const mp = document.getElementById('marketplace');
+      if (mp) mp.classList.add('revealed');
+    }, 300);
+    // Phase 3: Grid cards cascade with shelfDrop (+800ms)
+    setTimeout(() => {
+      if (window._shedApp && window._shedApp.revealGrid) window._shedApp.revealGrid();
+    }, 800);
   }
 
   // ─── SCENE ───
@@ -206,19 +220,10 @@ class SceneManager {
     this._scene.add(this._crtLight);
   }
 
-  // ─── POST-PROCESSING ───
-  _initPostProcessing() {
-    this._composer = new EffectComposer(this._renderer);
-    this._composer.addPass(new RenderPass(this._scene, this._camera));
-
-    const size = this._renderer.getSize(new THREE.Vector2());
-    this._bloomPass = new UnrealBloomPass(size, 0, 0.22, 0.24);
-    this._composer.addPass(this._bloomPass);
-    this._composer.addPass(new OutputPass());
-  }
+  // Post-processing removed — was UnrealBloomPass at strength 0 (no visible effect)
 
   // ─── PROCEDURAL WOOD TEXTURE GENERATOR ───
-  _generateWoodTexture(seed, w = 512, h = 512, darkMode = false) {
+  _generateWoodTexture(seed, w = 256, h = 256, darkMode = false) {
     const canvas = document.createElement('canvas');
     canvas.width = w;
     canvas.height = h;
@@ -323,12 +328,17 @@ class SceneManager {
     const plankCount = 14;
     const floorDepth = 12;
 
+    // Share 3 textures across all planks (saves ~11 texture generations)
+    const floorTexPool = [0, 1, 2].map(i => {
+      const t = this._generateWoodTexture(i * 13 + 7);
+      t.repeat.set(1, 8);
+      return t;
+    });
+
     for (let i = 0; i < plankCount; i++) {
       const x = (i - plankCount / 2) * plankW + plankW / 2;
 
-      // Each plank gets its own unique wood texture
-      const woodTex = this._generateWoodTexture(i * 13 + 7);
-      woodTex.repeat.set(1, 8); // Stretch along length
+      const woodTex = floorTexPool[i % 3];
 
       const plankGeo = new THREE.BoxGeometry(plankW - 0.02, 0.06, floorDepth);
       const plankMat = new THREE.MeshStandardMaterial({
@@ -368,12 +378,17 @@ class SceneManager {
     const wallW = 10;
     const wallZ = -3.5;
 
+    // Share 3 textures across all wall planks
+    const wallTexPool = [0, 1, 2].map(i => {
+      const t = this._generateWoodTexture(i * 17 + 42, 256, 128, true);
+      t.repeat.set(6, 1);
+      return t;
+    });
+
     for (let i = 0; i < wallPlankCount; i++) {
       const y = i * wallPlankH + 0.2;
 
-      // Darker wood for walls
-      const wallTex = this._generateWoodTexture(i * 17 + 42, 512, 256, true);
-      wallTex.repeat.set(6, 1);
+      const wallTex = wallTexPool[i % 3];
 
       const wpGeo = new THREE.BoxGeometry(wallW, wallPlankH - 0.02, 0.08);
       const wpMat = new THREE.MeshStandardMaterial({
@@ -600,7 +615,7 @@ class SceneManager {
         file: 'public/items/Meshy_AI_Ergonomic_Office_Chai_0301200802_texture.glb',
         pos: [1.09, 0, 0.5],
         rot: [0, -53, 0],
-        scale: 2.33
+        scale: 2.15
       },
       {
         name: 'rug',
@@ -1180,6 +1195,8 @@ class SceneManager {
             loading.classList.add('hidden');
             setTimeout(() => loading.style.display = 'none', 600);
           }
+          // Fallback: same three-phase reveal even without 3D
+          this._triggerRevealSequence();
         }, 1000);
       }
     );
@@ -1187,7 +1204,18 @@ class SceneManager {
 
   // ─── EVENTS ───
   _initEvents() {
-    window.addEventListener('resize', () => this._resize());
+    // ResizeObserver fires during CSS height transitions (window 'resize' does not)
+    this._roRAF = 0;
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(this._roRAF);
+      this._roRAF = requestAnimationFrame(() => this._resize());
+    });
+    ro.observe(this._canvas);
+
+    // Pause rendering when tab is hidden (saves GPU/battery)
+    document.addEventListener('visibilitychange', () => {
+      this._tabHidden = document.hidden;
+    });
 
     this._canvas.addEventListener('mousemove', (e) => {
       this._canvasRect = this._canvasRect || this._canvas.getBoundingClientRect();
@@ -1204,16 +1232,12 @@ class SceneManager {
   _resize() {
     const w = this._canvas.clientWidth;
     const h = this._canvas.clientHeight;
-    const dpr = this._renderer.getPixelRatio();
-    this._renderer.setSize(w * dpr, h * dpr, false);
-    this._canvas.width = w * dpr;
-    this._canvas.height = h * dpr;
+    if (w === 0 || h === 0) return;
+    // setSize handles DPR internally via setPixelRatio — pass CSS pixels only
+    this._renderer.setSize(w, h, false);
     if (this._camera) {
       this._camera.aspect = w / h;
       this._camera.updateProjectionMatrix();
-    }
-    if (this._composer) {
-      this._composer.setSize(w * dpr, h * dpr);
     }
     this._canvasRect = null;
   }
@@ -1614,6 +1638,9 @@ class SceneManager {
   _animate() {
     requestAnimationFrame(() => this._animate());
 
+    // Skip rendering when tab is hidden (saves GPU cycles + battery)
+    if (this._tabHidden) return;
+
     const now = performance.now();
     if (now - this._lastFrameAt < this._targetFrameMs) return;
     this._lastFrameAt = now;
@@ -1717,11 +1744,7 @@ class SceneManager {
     this._updateClockHands();
 
     // Render
-    if (this._composer) {
-      this._composer.render();
-    } else {
-      this._renderer.render(this._scene, this._camera);
-    }
+    this._renderer.render(this._scene, this._camera);
   }
 
   _updateBubblePos() {

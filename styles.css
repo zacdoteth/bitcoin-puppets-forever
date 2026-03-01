@@ -15,9 +15,9 @@
   --pink: #FF69B4;
   --opium: #ff6b2b;
   --green-crt: #0f0;
-  --font-display: 'Permanent Marker', cursive;
+  --font-display: 'Space Grotesk', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
-  --font-hand: 'Fredoka', 'Nunito', sans-serif;
+  --font-hand: 'Outfit', sans-serif;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -46,11 +46,15 @@ body {
   position: relative;
   z-index: 1;
   width: 100%;
-  height: 40vh;
+  height: 100vh;
   min-height: 300px;
   flex-shrink: 0;
   overflow: hidden;
   background: var(--dark);
+  transition: height 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.scene-container.settled {
+  height: 40vh;
 }
 
 #scene-canvas {
@@ -637,6 +641,16 @@ body {
   flex: 1;
   overflow-y: auto;
   min-height: 0;
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.8s ease-out 0.2s,
+              transform 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.2s;
+  pointer-events: none;
+}
+.marketplace.revealed {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 
 /* ═══ FILTER BAR ═══ */
@@ -654,6 +668,14 @@ body {
   backdrop-filter: blur(12px);
   border-radius: 10px;
   border: 1px solid rgba(255,255,255,0.03);
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+}
+.marketplace.revealed .filter-bar {
+  opacity: 1;
+  transform: translateY(0);
+  transition-delay: 0.15s;
 }
 
 .filter-label {
@@ -736,12 +758,27 @@ body {
   background: linear-gradient(135deg, rgba(30,20,8,0.6), rgba(20,14,5,0.8));
   border: 1.5px solid rgba(255,255,255,0.025);
   transition: transform 0.2s ease, border-color 0.25s ease, box-shadow 0.25s ease;
-  animation: cardIn 0.3s ease-out both;
+  opacity: 0;
+  transform: translateY(24px) scale(0.92);
 }
 
-@keyframes cardIn {
-  from { opacity: 0; transform: translateY(12px) scale(0.97); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+/* Shelf drop — triggered when .nft-grid--revealed is added */
+.nft-grid--revealed .nft-card {
+  animation: shelfDrop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes shelfDrop {
+  0%   { opacity: 0; transform: translateY(40px) scale(0.85) rotate(-1.5deg); }
+  60%  { opacity: 1; transform: translateY(-6px) scale(1.03) rotate(0.5deg); }
+  80%  { transform: translateY(3px) scale(0.99) rotate(0deg); }
+  100% { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
+}
+
+/* Skeleton cards stay visible as fallback */
+.nft-card.skeleton {
+  opacity: 1;
+  transform: none;
+  animation: none;
 }
 
 .nft-card:hover {
@@ -876,8 +913,11 @@ body {
 /* ═══ RESPONSIVE ═══ */
 @media (max-width: 768px) {
   .scene-container {
-    height: 80vh;
+    height: 100vh;
     min-height: 520px;
+  }
+  .scene-container.settled {
+    height: 80vh;
   }
 
   .scene-stats {
@@ -934,7 +974,6 @@ body {
 
 .nft-card.skeleton {
   pointer-events: none;
-  animation: cardIn 0.3s ease-out both;
 }
 
 .skeleton-img {
