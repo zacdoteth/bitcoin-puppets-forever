@@ -1754,8 +1754,13 @@ class SceneManager {
     const pos = this.getBubbleScreenPos();
     if (!pos) return;
 
+    // Clamp top so bubble (which renders above this point via transform) stays in view
+    const bubbleH = this._bubbleEl.offsetHeight || 60;
+    const minTop = bubbleH + 12; // 12px breathing room from top edge
+    const clampedY = Math.max(pos.y, minTop);
+
     this._bubbleEl.style.left = pos.x + 'px';
-    this._bubbleEl.style.top = pos.y + 'px';
+    this._bubbleEl.style.top = clampedY + 'px';
   }
 
   // ─── CRT SCREEN → PIXEL RECT ───

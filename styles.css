@@ -966,6 +966,17 @@ body {
   }
 }
 
+/* Short viewports — shrink bubble so it doesn't clip */
+@media (max-height: 700px) {
+  .char-bubble {
+    max-width: 280px;
+    font-size: 0.82rem;
+    padding: 8px 14px;
+    border-radius: 16px;
+    border-width: 2px;
+  }
+}
+
 /* ═══ SKELETON LOADING ═══ */
 @keyframes shimmer {
   0% { background-position: -200% 0; }
