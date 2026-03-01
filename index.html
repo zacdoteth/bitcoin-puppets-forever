@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="The Bitcoin Puppet Shed — An exclusive marketplace for Bitcoin Puppets and O.P.I.U.M. Ordinals collections. The Shed never closes.">
+<meta property="og:title" content="The Puppet Shed — Bitcoin Puppets Marketplace">
+<meta property="og:description" content="10,001 hand-drawn puppets. 777 O.P.I.U.M. The Shed never closes.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#110d07">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Permanent+Marker&family=JetBrains+Mono:wght@400;500;700&family=Fredoka:wght@400;500;600;700&family=Nunito:wght@700;800;900&display=swap">
+<title>The Puppet Shed — Bitcoin Puppets & O.P.I.U.M. Marketplace</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.164.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.0/examples/jsm/"
+  }
+}
+</script>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- 3D SCENE -->
+<div class="scene-container" id="scene-container">
+  <canvas id="scene-canvas"></canvas>
+
+  <!-- Loading screen -->
+  <div class="scene-loading" id="scene-loading">
+    <div class="loading-content">
+      <div class="loading-puppet">🎭</div>
+      <div class="loading-bar-track">
+        <div class="loading-bar-fill" id="loading-bar-fill"></div>
+      </div>
+      <div class="loading-status" id="loading-status">Opening the shed...</div>
+    </div>
+  </div>
+
+  <!-- Brand -->
+  <div class="scene-brand">
+    <div class="logo">
+      <span class="logo-icon">🎭</span>
+      <span class="logo-text">THE PUPPET SHED</span>
+    </div>
+    <div class="tagline">Bitcoin Puppets & O.P.I.U.M. Marketplace</div>
+  </div>
+
+  <!-- Stats bar -->
+  <div class="scene-stats">
+    <div class="stat">
+      <div class="stat-label">FLOOR</div>
+      <div class="stat-value" id="stat-floor">0.012&#8383;</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">OPIUM</div>
+      <div class="stat-value opium" id="stat-opium">0.157&#8383;</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">VAULT</div>
+      <div class="stat-value" id="stat-vault">0.84&#8383;</div>
+    </div>
+  </div>
+
+  <!-- Wallet -->
+  <button class="wallet-btn" id="wallet-btn" type="button">CONNECT</button>
+
+  <!-- Speech bubble (direct child of scene-container for pixel-accurate positioning) -->
+  <div class="char-bubble" id="char-bubble">Welcome to the Shed!</div>
+
+  <!-- Scene overlay (buy panel) -->
+  <div class="scene-overlay">
+    <!-- Buy panel (right side) -->
+    <div class="buy-panel" id="buy-panel">
+      <div class="buy-panel-empty" id="buy-empty">
+        <div class="buy-empty-icon">👇</div>
+        <div class="buy-empty-text">Select a puppet to inspect...</div>
+      </div>
+      <div class="buy-panel-active" id="buy-active" style="display:none">
+        <div class="buy-header">
+          <div class="buy-info">
+            <div class="buy-name" id="buy-name"></div>
+            <div class="buy-meta">
+              <span class="buy-rarity" id="buy-rarity"></span>
+              <span class="buy-col" id="buy-col"></span>
+            </div>
+          </div>
+          <button class="buy-close" id="buy-close" type="button">&#10005;</button>
+        </div>
+        <div class="buy-price-row">
+          <span class="buy-price" id="buy-price"></span>
+          <span class="buy-btc">&#8383;</span>
+          <span class="buy-usd" id="buy-usd"></span>
+        </div>
+        <div class="buy-traits" id="buy-traits"></div>
+        <div class="buy-actions">
+          <button class="btn-buy" id="btn-buy" type="button">BUY NOW</button>
+          <button class="btn-offer" id="btn-offer" type="button">OFFER</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MARKETPLACE -->
+<div class="marketplace" id="marketplace">
+  <!-- Filter bar -->
+  <div class="filter-bar" id="filter-bar">
+    <span class="filter-label">SORT</span>
+    <button class="chip active" data-sort="price-asc">Price &#8593;</button>
+    <button class="chip" data-sort="price-desc">Price &#8595;</button>
+    <button class="chip" data-sort="rarity">Rarity</button>
+    <span class="filter-sep"></span>
+    <button class="chip active" data-col="All">All</button>
+    <button class="chip" data-col="Puppets">Puppets</button>
+    <button class="chip opium" data-col="OPIUM">OPIUM</button>
+    <span class="filter-sep"></span>
+    <button class="chip active" data-rarity="All">All</button>
+    <button class="chip" data-rarity="common">Common</button>
+    <button class="chip" data-rarity="uncommon">Uncommon</button>
+    <button class="chip" data-rarity="rare">Rare</button>
+    <button class="chip" data-rarity="epic">Epic</button>
+    <button class="chip" data-rarity="legendary">Legendary</button>
+    <button class="chip" data-rarity="Genesis">OPIUM</button>
+    <span class="filter-count" id="filter-count">...</span>
+  </div>
+
+  <!-- NFT Grid -->
+  <div class="nft-grid" id="nft-grid"></div>
+
+  <!-- Empty state -->
+  <div class="nft-empty" id="nft-empty" style="display:none">Nothing here. 🎭</div>
+
+  <!-- Footer -->
+  <footer class="shed-footer">
+    <div class="footer-text">world peace &#9774;&#65039;</div>
+    <div class="footer-sub">The Shed never closes. All Rights Reversed.</div>
+  </footer>
+</div>
+
+<!-- Wallet picker modal -->
+<div class="wallet-modal-overlay" id="wallet-modal" style="display:none">
+  <div class="wallet-modal">
+    <div class="wallet-modal-header">
+      <span class="wallet-modal-title">Connect Wallet</span>
+      <button class="wallet-modal-close" id="wallet-modal-close" type="button">&#10005;</button>
+    </div>
+    <div class="wallet-modal-list" id="wallet-modal-list"></div>
+    <div class="wallet-modal-footer">Select a Bitcoin wallet to continue</div>
+  </div>
+</div>
+
+<!-- Buy Drawer (slides up from bottom) -->
+<div class="buy-drawer-overlay" id="buy-drawer" style="display:none">
+  <div class="buy-drawer">
+    <!-- Drawer handle -->
+    <div class="drawer-handle"></div>
+
+    <!-- Header -->
+    <div class="drawer-header">
+      <span class="drawer-title">Complete Purchase</span>
+      <button class="drawer-close" id="drawer-close" type="button">&#10005;</button>
+    </div>
+
+    <!-- NFT Preview Row -->
+    <div class="drawer-nft-row">
+      <div class="drawer-nft-img-wrap">
+        <img class="drawer-nft-img" id="drawer-nft-img" src="" alt="">
+      </div>
+      <div class="drawer-nft-info">
+        <div class="drawer-nft-name" id="drawer-nft-name"></div>
+        <div class="drawer-nft-meta">
+          <span class="drawer-nft-rarity" id="drawer-nft-rarity"></span>
+          <span class="drawer-nft-col" id="drawer-nft-col"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Transaction Stepper -->
+    <div class="tx-stepper" id="tx-stepper">
+      <div class="tx-step active" data-step="review">
+        <div class="tx-step-dot"></div>
+        <span class="tx-step-label">Review</span>
+      </div>
+      <div class="tx-step-line"></div>
+      <div class="tx-step" data-step="sign">
+        <div class="tx-step-dot"></div>
+        <span class="tx-step-label">Sign</span>
+      </div>
+      <div class="tx-step-line"></div>
+      <div class="tx-step" data-step="done">
+        <div class="tx-step-dot"></div>
+        <span class="tx-step-label">Done</span>
+      </div>
+    </div>
+
+    <!-- Step: Review -->
+    <div class="drawer-step" id="drawer-step-review">
+      <!-- Price breakdown -->
+      <div class="drawer-breakdown">
+        <div class="breakdown-row">
+          <span class="breakdown-label">Item Price</span>
+          <span class="breakdown-value" id="drawer-price"></span>
+        </div>
+        <div class="breakdown-row subtle">
+          <span class="breakdown-label">Network Fee (est.)</span>
+          <span class="breakdown-value" id="drawer-netfee">~0.00015 BTC</span>
+        </div>
+        <div class="breakdown-row subtle">
+          <span class="breakdown-label">Shed Fee (2%)</span>
+          <span class="breakdown-value" id="drawer-shedfee"></span>
+        </div>
+        <div class="breakdown-divider"></div>
+        <div class="breakdown-row total">
+          <span class="breakdown-label">Total</span>
+          <span class="breakdown-value" id="drawer-total"></span>
+        </div>
+        <div class="breakdown-row usd-row">
+          <span></span>
+          <span class="breakdown-usd" id="drawer-total-usd"></span>
+        </div>
+      </div>
+
+      <!-- Payment method -->
+      <div class="drawer-pay-method">
+        <span class="pay-label">PAY WITH</span>
+        <div class="pay-options">
+          <button class="pay-pill active" data-method="btc">&#8383; BTC</button>
+          <button class="pay-pill disabled" data-method="card" disabled>CC soon</button>
+          <button class="pay-pill disabled" data-method="usdc" disabled>USDC soon</button>
+        </div>
+      </div>
+
+      <!-- CTA -->
+      <button class="drawer-cta" id="drawer-cta" type="button">CONFIRM PURCHASE</button>
+      <div class="drawer-terms">By purchasing you agree to Shed terms of service</div>
+    </div>
+
+    <!-- Step: Signing -->
+    <div class="drawer-step" id="drawer-step-sign" style="display:none">
+      <div class="drawer-signing">
+        <div class="signing-icon" id="signing-icon">
+          <div class="signing-spinner"></div>
+        </div>
+        <div class="signing-title" id="signing-title">Confirm in your wallet</div>
+        <div class="signing-sub" id="signing-sub">A signature request has been sent to your wallet</div>
+      </div>
+    </div>
+
+    <!-- Step: Done -->
+    <div class="drawer-step" id="drawer-step-done" style="display:none">
+      <div class="drawer-success">
+        <div class="success-check" id="success-check">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+            <circle cx="24" cy="24" r="23" stroke="#22c55e" stroke-width="2" class="success-circle"/>
+            <path d="M14 24l7 7 13-13" stroke="#22c55e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="success-tick"/>
+          </svg>
+        </div>
+        <div class="success-title">It's yours, fren!</div>
+        <div class="success-name" id="success-name"></div>
+        <div class="success-actions">
+          <a class="success-link" id="success-ordinals-link" href="#" target="_blank">View on Ordinals</a>
+          <button class="success-back" id="success-back" type="button">Back to Shop</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Celebration particles (rendered by JS) -->
+<canvas class="confetti-canvas" id="confetti-canvas"></canvas>
+
+<!-- Transaction status toast -->
+<div class="tx-toast" id="tx-toast" style="display:none">
+  <div class="tx-toast-icon" id="tx-toast-icon"></div>
+  <div class="tx-toast-msg" id="tx-toast-msg"></div>
+</div>
+
+<script type="module" src="scene.module.js"></script>
+<script src="wallet.js"></script>
+<script src="marketplace-api.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
