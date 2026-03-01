@@ -29,6 +29,9 @@ class SceneManager {
     this._selectedNFT = null;
     this._monitorMat = null;
     this._monitorNFTTexture = null;
+    this._screenOnProgress = 0;
+    this._screenPoweringOn = false;
+    this._screenPoweredOn = false;
     this._steamParticles = [];
     this._dustParticles = null;
     this._canvasRect = null;
@@ -132,6 +135,12 @@ class SceneManager {
     this._camera.position.y = this._baseCameraPos.y + driftY + this._mouse.y * 0.08;
 
     this._camera.updateProjectionMatrix();
+
+    // Power on the CRT midway through the zoom (40% in)
+    if (progress > 0.4 && !this._screenPoweringOn && !this._screenPoweredOn) {
+      this._screenPoweringOn = true;
+      this._screenOnProgress = 0;
+    }
 
     if (progress >= 1) {
       this._introActive = false;
@@ -471,30 +480,7 @@ class SceneManager {
     this._buildWallFrame(1.5, 2.9, wallZ + 0.06, 55, 0.04,   wallPuppets[3]);
     this._buildWallFrame(2.8, 2.7, wallZ + 0.06, 33, -0.03,  wallPuppets[4]);
 
-    // ─── SMALL RUG on floor ───
-    const rugGeo = new THREE.PlaneGeometry(2.0, 1.2);
-    const rugMat = new THREE.MeshStandardMaterial({
-      color: 0x8B3A2A,
-      roughness: 0.9,
-      metalness: 0,
-      side: THREE.DoubleSide
-    });
-    const rug = new THREE.Mesh(rugGeo, rugMat);
-    rug.rotation.x = -Math.PI / 2;
-    rug.position.set(-0.5, 0.005, 1.5);
-    this._scene.add(rug);
-
-    // Rug border
-    const rugBorderGeo = new THREE.PlaneGeometry(2.2, 1.4);
-    const rugBorderMat = new THREE.MeshStandardMaterial({
-      color: 0x6A2818,
-      roughness: 0.9,
-      side: THREE.DoubleSide
-    });
-    const rugBorder = new THREE.Mesh(rugBorderGeo, rugBorderMat);
-    rugBorder.rotation.x = -Math.PI / 2;
-    rugBorder.position.set(-0.5, 0.003, 1.5);
-    this._scene.add(rugBorder);
+    // Old hardcoded rug removed — replaced by GLB rug prop
 
     // ─── Contact shadow under character ───
     const cShadowGeo = new THREE.PlaneGeometry(2.0, 2.0);
@@ -608,6 +594,20 @@ class SceneManager {
         pos: [0.1, 0.96, -0.45],
         rot: [-5, 0, 0],
         scale: 0.09
+      },
+      {
+        name: 'officeChair',
+        file: 'public/items/Meshy_AI_Ergonomic_Office_Chai_0301200802_texture.glb',
+        pos: [1.09, 0, 0.5],
+        rot: [0, -53, 0],
+        scale: 2.33
+      },
+      {
+        name: 'rug',
+        file: 'public/items/Meshy_AI_Lion_s_Emblem_Rug_0301193710_texture.glb',
+        pos: [0.96, -0.04, -1.15],
+        rot: [0, -90, 0],
+        scale: [0.07, 0.1, 0.1]
       }
     ];
 
@@ -620,7 +620,11 @@ class SceneManager {
           THREE.MathUtils.degToRad(cfg.rot[1]),
           THREE.MathUtils.degToRad(cfg.rot[2])
         );
-        model.scale.setScalar(cfg.scale);
+        if (Array.isArray(cfg.scale)) {
+          model.scale.set(cfg.scale[0], cfg.scale[1], cfg.scale[2]);
+        } else {
+          model.scale.setScalar(cfg.scale);
+        }
         model.traverse(child => {
           if (child.isMesh) {
             child.castShadow = true;
@@ -709,6 +713,13 @@ class SceneManager {
     f.add(model.scale, 'x', 0.01, 5, 0.01).name('Scale').onChange(v => { model.scale.setScalar(v); });
     f.add({ visible: true }, 'visible').name('Visible').onChange(v => { model.visible = v; });
 
+    // Rug: separate width/height controls (non-uniform scale)
+    if (name === 'rug') {
+      f.add(model.scale, 'x', 0.01, 5, 0.01).name('Width');
+      f.add(model.scale, 'y', 0.01, 5, 0.01).name('Height');
+      f.add(model.scale, 'z', 0.01, 5, 0.01).name('Depth');
+    }
+
     // Clock hands pivot controls
     if (name === 'clock' && this._clockPivot) {
       const cf = f.addFolder('Hands Pivot');
@@ -738,11 +749,14 @@ class SceneManager {
         uNFTColor: { value: new THREE.Color('#0f0') },
         uNFTTexture: { value: null },
         uHasTexture: { value: 0 },
-        uOpacity: { value: 0.52 }
+        uBootTexture: { value: null },
+        uHasBoot: { value: 0 },
+        uScreenOn: { value: 0 },
+        uOpacity: { value: 0.69 }
       },
       transparent: true,
-      depthWrite: false,
-      blending: THREE.NormalBlending,
+      depthWrite: true,
+      blending: THREE.AdditiveBlending,
       vertexShader: `varying vec2 vUv;
         void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
       fragmentShader: `
@@ -751,6 +765,9 @@ class SceneManager {
         uniform vec3 uNFTColor;
         uniform sampler2D uNFTTexture;
         uniform float uHasTexture;
+        uniform sampler2D uBootTexture;
+        uniform float uHasBoot;
+        uniform float uScreenOn;
         uniform float uOpacity;
         varying vec2 vUv;
 
@@ -777,6 +794,20 @@ class SceneManager {
             col *= 0.92 + 0.08 * sin(vUv.y * 180.0);
             float vig = 1.0 - 0.2 * length(vUv - 0.5);
             col *= vig;
+          } else if (uHasBoot > 0.5) {
+            // Pad the smile image inward (0.0 = full bleed, higher = more padding)
+            float pad = 0.016;
+            vec2 paddedUv = vUv * (1.0 - pad * 2.0) + pad;
+            col = bg;
+            // Only sample texture inside the padded region
+            if (paddedUv.x > 0.0 && paddedUv.x < 1.0 && paddedUv.y > 0.0 && paddedUv.y < 1.0) {
+              col = texture2D(uBootTexture, paddedUv).rgb;
+            }
+            // Gentle CRT warmth + scanlines
+            col *= 0.90 + 0.10 * sin(vUv.y * 200.0);
+            float vig = 1.0 - 0.15 * length(vUv - 0.5);
+            col *= vig;
+            col = mix(col, col * vec3(0.9, 1.05, 0.9), 0.08);
           } else {
             col = bg;
             vec2 p = vUv * 12.0;
@@ -792,7 +823,16 @@ class SceneManager {
             float vig = 1.0 - 0.25 * length(vUv - 0.5);
             col *= vig;
           }
-          gl_FragColor = vec4(col, uOpacity);
+
+          // CRT power-on: horizontal line expands vertically (classic TV turn-on)
+          float powerOn = clamp(uScreenOn, 0.0, 1.0);
+          float vertDist = abs(vUv.y - 0.5) * 2.0; // 0 at center, 1 at edge
+          float powerMask = smoothstep(powerOn, powerOn - 0.15, vertDist);
+          // Phosphor brightness boost during early power-on
+          float phosphorBoost = 1.0 + (1.0 - powerOn) * 0.6;
+          col *= powerMask * phosphorBoost;
+
+          gl_FragColor = vec4(col, uOpacity * step(0.001, powerOn));
         }`
     });
     this._monitorMat = screenMat;
@@ -820,11 +860,23 @@ class SceneManager {
 
         // ─── SCREEN OVERLAY ───
         // Plane child positioned on the CRT glass face — tuned via GUI
-        const screenGeo = new THREE.PlaneGeometry(0.71, 0.55);
+        const screenGeo = new THREE.PlaneGeometry(0.69, 0.63);
         const screenPlane = new THREE.Mesh(screenGeo, screenMat);
-        screenPlane.position.set(0, 0.66, 0.49);
+        screenPlane.position.set(0.01, 0.63, 0.49);
         crt.add(screenPlane);
         this._screenMesh = screenPlane;
+
+        // Load smile.png as boot/idle screen
+        const bootImg = new Image();
+        bootImg.crossOrigin = 'anonymous';
+        bootImg.onload = () => {
+          const tex = new THREE.Texture(bootImg);
+          tex.colorSpace = THREE.SRGBColorSpace;
+          tex.needsUpdate = true;
+          screenMat.uniforms.uBootTexture.value = tex;
+          screenMat.uniforms.uHasBoot.value = 1;
+        };
+        bootImg.src = 'public/img/smile.png';
 
         console.log('CRT GLB loaded! Screen overlay placed on glass face.');
         if (this._setupCRTGUI) this._setupCRTGUI();
@@ -1609,9 +1661,21 @@ class SceneManager {
       }
     }
 
-    // Monitor shader time
+    // Monitor shader time + power-on animation
     if (this._monitorMat) {
       this._monitorMat.uniforms.uTime.value = t;
+
+      if (this._screenPoweringOn) {
+        this._screenOnProgress = Math.min(this._screenOnProgress + dt * 1.8, 1); // ~0.55s
+        // easeOutCubic for a satisfying settle
+        const p = 1 - Math.pow(1 - this._screenOnProgress, 3);
+        this._monitorMat.uniforms.uScreenOn.value = p;
+        if (this._screenOnProgress >= 1) {
+          this._screenPoweringOn = false;
+          this._screenPoweredOn = true;
+          this._monitorMat.uniforms.uScreenOn.value = 1;
+        }
+      }
     }
 
     // Power LED blink

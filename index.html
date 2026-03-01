@@ -75,7 +75,7 @@
   <div class="rpg-dialogue" id="rpg-dialogue">
     <div class="rpg-dialogue-box">
       <div class="rpg-speaker">
-        <span class="rpg-speaker-icon">🎭</span>
+        <img class="rpg-speaker-icon" src="public/img/lefou.png" alt="Le Puppeteer">
         <span class="rpg-speaker-name">Le Puppeteer</span>
       </div>
       <div class="rpg-text" id="rpg-text"></div>
@@ -212,6 +212,16 @@
           <button class="pay-pill active" data-method="btc">&#8383; BTC</button>
           <button class="pay-pill disabled" data-method="card" disabled>CC soon</button>
           <button class="pay-pill disabled" data-method="usdc" disabled>USDC soon</button>
+        </div>
+      </div>
+
+      <!-- Fee rate selector -->
+      <div class="drawer-pay-method">
+        <span class="pay-label">FEE RATE</span>
+        <div class="pay-options" id="fee-rate-options">
+          <button class="pay-pill active" data-fee="fastestFee">Fast</button>
+          <button class="pay-pill" data-fee="halfHourFee">Medium</button>
+          <button class="pay-pill" data-fee="hourFee">Economy</button>
         </div>
       </div>
 

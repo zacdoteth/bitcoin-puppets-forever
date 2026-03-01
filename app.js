@@ -1,13 +1,11 @@
 /* ═══════════════════════════════════════════════
    THE PUPPET SHED — Marketplace App Logic
    Bitcoin Puppets & O.P.I.U.M. Marketplace
-   Data: Hiro (inscriptions) + Unisat (listings) + Ordiscan (stats)
+   Data: Hiro (inscriptions) + OrdinalsBot (listings) + Ordiscan (stats)
    ═══════════════════════════════════════════════ */
 
 // ═══ API CONFIG ═══
 const HIRO_API = 'https://api.hiro.so/ordinals/v1';
-const UNISAT_API = 'https://open-api.unisat.io';
-const UNISAT_KEY = ''; // Get yours at developer.unisat.io
 const ORDISCAN_API = 'https://api.ordiscan.com';
 const ORDISCAN_KEY = ''; // Get yours at ordiscan.com/docs/api
 const ORD_CONTENT = 'https://ordinals.com/content/';
@@ -192,60 +190,49 @@ async function fetchPuppetsFromHiro(offset = 0, limit = 60) {
   }
 }
 
-// ═══ UNISAT LISTINGS ═══
-async function fetchUnisatListings(collectionId, label, limit = 80) {
-  if (!UNISAT_KEY) return [];
+// ═══ ORDINALSBOT LISTINGS ═══
+async function fetchOrdinalsBotListings(collectionSlug, label, limit = 50) {
+  if (!window._marketAPI) return [];
 
   try {
-    const data = await fetchJSON(`${UNISAT_API}/v3/market/collection/auction/list`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${UNISAT_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        collectionId,
-        limit,
-        offset: 0,
-        sort: 'price_asc'
-      })
-    });
+    const data = await window._marketAPI.getListings(
+      { collectionSlug },
+      1,     // page
+      limit,
+      'priceAsc'
+    );
 
-    const items = data?.data?.list || [];
+    const items = data?.results || data?.listings || [];
     return items.map(t => {
-      const insId = t.inscriptionId || t.nftId || '';
+      const insId = t.ordinalId || t.id || '';
       const priceSats = t.price || 0;
       return {
         id: insId,
         inscriptionId: insId,
-        inscriptionNumber: t.inscriptionNumber || 0,
-        name: t.name || `${label} #${t.inscriptionNumber || '?'}`,
+        inscriptionNumber: t.inscriptionNumber || t.number || 0,
+        name: t.name || `${label} #${t.inscriptionNumber || t.number || '?'}`,
         price: priceSats,
         priceBTC: satsTobtc(priceSats),
         rarity: mapRarity(t.satRarity || t.sat_rarity, label),
         traits: [],
         col: label,
         imageUrl: insId ? getImageURL(insId) : '',
-        contentType: 'image/webp',
-        owner: t.owner || t.address || '',
+        contentType: t.contentType || 'image/webp',
+        owner: t.owner || t.sellerPaymentAddress || '',
         listed: priceSats > 0
       };
     });
   } catch (err) {
-    console.warn(`Unisat fetch failed for ${collectionId}:`, err);
+    console.warn(`OrdinalsBot listings fetch failed for ${collectionSlug}:`, err);
     return [];
   }
 }
 
 async function upgradeWithPrices() {
-  if (!UNISAT_KEY) {
-    console.warn('Unisat API key not set — prices unavailable. Get one at developer.unisat.io');
-    return;
-  }
-
+  // Try OrdinalsBot listings (works with or without API key, just rate-limited)
   try {
-    // Fetch puppet listings from Unisat
-    const puppetListings = await fetchUnisatListings('bitcoin-puppets', 'Puppets', 80);
+    // Fetch puppet listings
+    const puppetListings = await fetchOrdinalsBotListings('bitcoin-puppets', 'Puppets', 80);
     if (puppetListings.length > 0) {
       const existingIds = new Set(ALL_NFTS.map(n => n.id));
       const priceMap = new Map(puppetListings.map(n => [n.id, n]));
@@ -265,16 +252,16 @@ async function upgradeWithPrices() {
     await new Promise(r => setTimeout(r, 2000));
 
     // Fetch OPIUM listings
-    const opiumListings = await fetchUnisatListings('opium', 'OPIUM', 30);
+    const opiumListings = await fetchOrdinalsBotListings('opium', 'OPIUM', 30);
     if (opiumListings.length > 0) {
       opiumListings.forEach(n => { n.rarity = 'Genesis'; });
       ALL_NFTS = [...ALL_NFTS, ...opiumListings];
     }
 
-    console.log(`Upgraded with Unisat prices: ${puppetListings.length} puppets, ${opiumListings.length} OPIUM`);
+    console.log(`Upgraded with OrdinalsBot prices: ${puppetListings.length} puppets, ${opiumListings.length} OPIUM`);
     renderGrid();
   } catch (err) {
-    console.log('Price upgrade skipped (Unisat unavailable):', err.message);
+    console.log('Price upgrade skipped (OrdinalsBot unavailable):', err.message);
   }
 }
 
@@ -306,7 +293,7 @@ async function loadAllNFTs() {
       } catch (e) { /* ok */ }
     })();
 
-    // Upgrade with Unisat prices in background
+    // Upgrade with OrdinalsBot listings in background
     setTimeout(() => upgradeWithPrices(), 3000);
     fetchCollectionStats();
     return;
@@ -481,31 +468,184 @@ function buildShopkeeperDialogue(nft) {
   const isListed = nft.price > 0;
   const priceBtc = formatBTC(nft.price);
   const priceUsd = Math.round((nft.price / 1e8) * btcUsd).toLocaleString();
+  const h = Math.abs(hashStr(nft.id));
 
-  // Rarity-based intro
+  // ── Part 1: Rarity intro (Cranky Kong item shop energy) ──
   const intros = {
-    common: ["Ah, a solid pick!", "Classic choice, fren.", "Every collection starts here."],
-    uncommon: ["Ooh, not bad!", "You've got an eye for this.", "Uncommon vibes!"],
-    rare: ["Now we're talking!", "A rare gem right here.", "Smart collectors know."],
-    epic: ["Whoa, epic find!", "THIS one has character.", "Now that's a keeper!"],
-    legendary: ["A LEGENDARY piece!", "Few have held one of these.", "Diamond hands required."],
-    mythic: ["Among the rarest in the land!", "A mythic! *chef's kiss*", "You found something special."],
-    Genesis: ["Pure O.P.I.U.M.!", "Only 777 exist. A masterpiece.", "From the fringes of the karmic grid."]
+    common: [
+      "Ah, good eye!",
+      "A classic right here.",
+      "Solid puppet, this one.",
+      "Can't go wrong with it.",
+    ],
+    uncommon: [
+      "Ooh, nice pick!",
+      "This one's a cut above.",
+      "Don't see this every day.",
+      "Got a little something extra.",
+    ],
+    rare: [
+      "Now we're talking!",
+      "Heh, you found a rare one.",
+      "This doesn't sit on the shelf long.",
+      "Sharp eye, fren.",
+    ],
+    epic: [
+      "Whoa — epic!",
+      "THIS one's got serious character.",
+      "Check this out, fren.",
+      "Now that's special.",
+    ],
+    legendary: [
+      "A legendary piece!",
+      "Oh ho — you found the good stuff.",
+      "Top shelf, this one.",
+      "I keep this behind the counter.",
+    ],
+    mythic: [
+      "A MYTHIC!",
+      "I was saving this for someone special.",
+      "Don't even know how this got here.",
+      "You have no idea how rare this is.",
+    ],
+    Genesis: [
+      "Pure O.P.I.U.M.!",
+      "Only 777 of these exist.",
+      "Straight from the karmic grid.",
+      "The real deal. Handle with care.",
+    ],
   };
 
   const rarKey = nft.col === 'OPIUM' ? 'Genesis' : nft.rarity;
   const introPool = intros[rarKey] || intros.common;
-  const intro = introPool[Math.abs(hashStr(nft.id)) % introPool.length];
+  const intro = introPool[h % introPool.length];
 
-  let msg = `${intro} ${nft.name} — ${displayRarity}.`;
+  // ── Part 2: Trait comment ──
+  let traitLine = '';
+  if (nft.traits && nft.traits.length > 0) {
+    const traitIdx = (h >>> 4) % nft.traits.length;
+    const trait = nft.traits[traitIdx];
+    const tl = trait.toLowerCase();
 
-  if (isListed) {
-    msg += ` Going for ${priceBtc}\u20bf — that's about $${priceUsd}.`;
-  } else {
-    msg += ` Not listed right now... but you could make an offer!`;
+    // Keyword-matched reactions (shopkeeper pointing out features)
+    const traitReactions = [
+      [/laser/i, [
+        "Laser eyes on this one!",
+        "Got the laser eyes — stays bullish.",
+        "Those lasers aren't just for show.",
+      ]],
+      [/gold/i, [
+        "Got the gold drip.",
+        "Gold on gold. This puppet has taste.",
+        "That gold hits different.",
+      ]],
+      [/crown/i, [
+        "Crown on top — royalty.",
+        "Wearing the crown.",
+        "Crowned puppet, top tier.",
+      ]],
+      [/smoke|cig|blunt|joint/i, [
+        "Puffin' away, no worries.",
+        "Got that smoke.",
+        "Living its best life.",
+      ]],
+      [/hoodie/i, [
+        "Hoodie up — builder vibes.",
+        "Classic hoodie look.",
+        "The hoodie says it all.",
+      ]],
+      [/zombie/i, [
+        "Zombie mode — survived every cycle.",
+        "Undead and still here.",
+        "A zombie! Survived the bear market.",
+      ]],
+      [/ape/i, [
+        "Full ape mode.",
+        "An ape among puppets.",
+        "This one apes in first, asks later.",
+      ]],
+      [/pizza/i, [
+        "Pizza! A Bitcoin classic.",
+        "Got that pizza — OG vibes.",
+        "10,000 BTC pizza energy.",
+      ]],
+      [/glasses|shades|sunnies/i, [
+        "Shades on. Too cool.",
+        "Rocking the shades.",
+        "Future's bright with those on.",
+      ]],
+      [/hat|cap|beanie/i, [
+        "Nice hat on this one.",
+        "Love the headwear.",
+        "That hat's got character.",
+      ]],
+      [/alien/i, [
+        "Alien! Not of this world.",
+        "Got that alien look.",
+        "Out of this world, literally.",
+      ]],
+      [/diamond/i, [
+        "Diamond drip!",
+        "Diamonds on this one.",
+        "Diamond hands, diamond puppet.",
+      ]],
+      [/rainbow/i, [
+        "Rainbow vibes!",
+        "All the colors on this one.",
+        "That rainbow goes hard.",
+      ]],
+      [/suit|tux/i, [
+        "Suited up. Means business.",
+        "Sharp suit on this one.",
+        "Came dressed for the occasion.",
+      ]],
+      [/eye|eyes/i, [
+        "Look at those eyes.",
+        "The eyes on this one!",
+        "Those eyes tell a story.",
+      ]],
+    ];
+
+    let matched = false;
+    for (const [regex, lines] of traitReactions) {
+      if (regex.test(tl)) {
+        traitLine = ' ' + lines[(h >>> 8) % lines.length];
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      const genericTraitLines = [
+        `Got that ${trait} look.`,
+        `Rocking the ${trait}.`,
+        `${trait} on this one — nice.`,
+        `Love the ${trait}.`,
+      ];
+      traitLine = ' ' + genericTraitLines[(h >>> 8) % genericTraitLines.length];
+    }
   }
 
-  return msg;
+  // ── Part 3: Price line ──
+  let priceLine;
+  if (isListed) {
+    const priceLines = [
+      `${priceBtc}\u20bf — about $${priceUsd}.`,
+      `Listed at ${priceBtc}\u20bf ($${priceUsd}).`,
+      `${priceBtc}\u20bf on the tag. $${priceUsd}.`,
+      `Asking ${priceBtc}\u20bf — that's $${priceUsd}.`,
+    ];
+    priceLine = ' ' + priceLines[(h >>> 12) % priceLines.length];
+  } else {
+    const offerLines = [
+      " Not listed — but you could make an offer.",
+      " No price yet. Make an offer?",
+      " Off-market. A good offer might change that.",
+      " Unlisted — the owner's holding tight.",
+    ];
+    priceLine = offerLines[(h >>> 12) % offerLines.length];
+  }
+
+  return `${intro} ${nft.name} — ${displayRarity}.${traitLine}${priceLine}`;
 }
 
 function showRPGDialogue(nft) {
@@ -563,21 +703,12 @@ function showRPGChoices(nft) {
   let choicesHTML = '';
 
   if (isListed) {
-    choicesHTML += `<button class="rpg-choice" data-action="buy">
-      <span class="rpg-arrow">\u25b6</span>
-      <span class="rpg-choice-label">Buy for ${priceBtc}\u20bf</span>
-    </button>`;
+    choicesHTML += `<button class="rpg-choice" data-action="buy">Buy for ${priceBtc}\u20bf</button>`;
   }
 
-  choicesHTML += `<button class="rpg-choice" data-action="offer">
-    <span class="rpg-arrow">\u25b6</span>
-    <span class="rpg-choice-label">Make an Offer</span>
-  </button>`;
+  choicesHTML += `<button class="rpg-choice" data-action="offer">Make an Offer</button>`;
 
-  choicesHTML += `<button class="rpg-choice" data-action="look">
-    <span class="rpg-arrow">\u25b6</span>
-    <span class="rpg-choice-label">Just Looking</span>
-  </button>`;
+  choicesHTML += `<button class="rpg-choice" data-action="look">Just Looking</button>`;
 
   choicesEl.innerHTML = choicesHTML;
   choicesEl.classList.add('show');
@@ -596,7 +727,6 @@ function showRPGChoices(nft) {
         showBubble("Offers coming soon, fren!", 2500, true);
       } else {
         hideRPGDialogue();
-        deselectNFT();
         showBubble("Take your time! I'll be right here.", 3000, true);
       }
     });
@@ -905,6 +1035,11 @@ function setDrawerStep(step) {
   document.getElementById('drawer-step-done').style.display = step === 'done' ? 'block' : 'none';
 }
 
+function getSelectedFeeRate() {
+  const active = document.querySelector('#fee-rate-options .pay-pill.active');
+  return active ? active.dataset.fee : 'fastestFee';
+}
+
 async function executeBuy() {
   if (!drawerNFT) return;
 
@@ -916,10 +1051,12 @@ async function executeBuy() {
   const walletName = window._wallet.getProviderName() || 'wallet';
   document.getElementById('signing-title').textContent = 'Confirm in ' + walletName.charAt(0).toUpperCase() + walletName.slice(1);
 
+  const feeRate = getSelectedFeeRate();
+
   try {
     if (window._marketAPI && window._marketAPI.hasApiKey()) {
-      const result = await window._marketAPI.buyNow(drawerNFT.inscriptionId);
-      showBuySuccess(result.txId);
+      const result = await window._marketAPI.buyNow(drawerNFT.inscriptionId, feeRate);
+      showBuySuccess(result.txid || result.txId);
     } else {
       // Demo mode — simulate signing delay then show success
       document.getElementById('signing-sub').textContent = 'Marketplace API key needed for live trades — demo mode';
@@ -1023,14 +1160,31 @@ function initBuyPanel() {
   if (window._marketAPI) {
     window._marketAPI.onStatus((status, data) => {
       const msgs = {
-        preparing: 'Preparing transaction...',
-        sign: 'Confirm in your wallet...',
+        preparing: data?.message || 'Preparing transaction...',
+        sign: data?.message || 'Confirm in your wallet...',
         broadcasting: 'Broadcasting transaction...',
         confirmed: 'Transaction confirmed!',
         error: data?.message || 'Transaction failed'
       };
       const type = status === 'confirmed' ? 'success' : status === 'error' ? 'error' : '';
       showTxToast(msgs[status] || status, type, status === 'confirmed' ? 6000 : status === 'error' ? 5000 : 0);
+
+      // Update signing step subtitle with current status
+      const signingSub = document.getElementById('signing-sub');
+      if (signingSub && (status === 'preparing' || status === 'sign')) {
+        signingSub.textContent = data?.message || msgs[status];
+      }
+    });
+  }
+
+  // Fee rate pills
+  const feeRateOpts = document.getElementById('fee-rate-options');
+  if (feeRateOpts) {
+    feeRateOpts.addEventListener('click', (e) => {
+      const pill = e.target.closest('.pay-pill');
+      if (!pill || pill.disabled) return;
+      feeRateOpts.querySelectorAll('.pay-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
     });
   }
 
