@@ -358,7 +358,7 @@ class SceneManager {
       }
 
       const plank = new THREE.Mesh(plankGeo, plankMat);
-      plank.position.set(x, -0.03, -floorDepth / 2 + 5);
+      plank.position.set(x, -0.03, -floorDepth / 2 + 15);
       plank.receiveShadow = true;
       floorGroup.add(plank);
 
@@ -367,7 +367,7 @@ class SceneManager {
         const gapGeo = new THREE.BoxGeometry(0.025, 0.01, floorDepth);
         const gapMat = new THREE.MeshStandardMaterial({ color: 0x1a0e04, roughness: 1 });
         const gap = new THREE.Mesh(gapGeo, gapMat);
-        gap.position.set(x + plankW / 2, 0.001, -floorDepth / 2 + 5);
+        gap.position.set(x + plankW / 2, 0.001, -floorDepth / 2 + 15);
         floorGroup.add(gap);
       }
     }
