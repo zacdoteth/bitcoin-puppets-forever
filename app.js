@@ -437,12 +437,11 @@ function renderGrid() {
     const isListed = nft.price > 0;
     const displayPrice = isListed ? formatBTC(nft.price) + '\u20bf' : 'Unlisted';
 
-    const cardStyle = skipAnim
-      ? 'opacity:1;transform:none;'
-      : `animation-delay:${i * 50}ms;`;
+    const animClass = skipAnim ? 'no-anim' : '';
+    const cardStyle = skipAnim ? '' : `animation-delay:${i * 50}ms;`;
 
     return `
-      <div class="nft-card ${isActive ? 'active' : ''}" data-id="${nft.id}" style="${cardStyle} ${isActive ? `border-color:${rc}50; box-shadow: 0 0 20px ${rc}15` : ''}">
+      <div class="nft-card ${animClass} ${isActive ? 'active' : ''}" data-id="${nft.id}" style="${cardStyle} ${isActive ? `border-color:${rc}50; box-shadow: 0 0 20px ${rc}15` : ''}">
         <div class="nft-card-frame ${isGenesis ? 'gold' : ''}">
           <div class="nft-card-img-wrap">
             <img class="nft-card-img" src="${nft.imageUrl}" alt="${nft.name}" loading="lazy" onerror="this.style.display='none'">
@@ -1237,6 +1236,7 @@ window._shedApp = {
     const sequence = [
       { delay: 600, msg: "Welcome to the Shed!", dur: 4000 },
       { delay: 5500, msg: "Pick a puppet below to inspect it.", dur: 4000 },
+      { delay: 10500, msg: "🌍☮️", dur: 3000 },
     ];
 
     sequence.forEach(({ delay, msg, dur }) => {

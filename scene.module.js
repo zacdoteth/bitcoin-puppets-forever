@@ -47,7 +47,7 @@ class SceneManager {
     // Post-processing removed — bloom was strength 0 (no visible effect), saves 3 extra render passes/frame
     this._buildEnvironment();
     this._buildDustParticles();
-    this._loadProps();
+    this._propsReady = this._loadProps();
     this._loadModel();
     this._initEvents();
     if (new URLSearchParams(location.search).has('debug')) {
@@ -97,16 +97,28 @@ class SceneManager {
       this._baseCameraTarget.set(0, 1.5, 0);
     }
 
-    // Start zoomed out for intro (will animate to _targetFov)
-    this._introFov = this._isMobile ? 65 : 90;
+    // ── Overhead drone shot → pan down ──
+    // Camera starts directly above the scene looking straight down (top of puppet's head).
+    // Pure linear interpolation to final position. No easing. Constant velocity.
+    if (this._isMobile) {
+      this._introStartPos = new THREE.Vector3(0, 5.95, 0.5);
+      this._introStartTarget = new THREE.Vector3(0, 0, 0.5);
+      this._introFov = 55;
+    } else {
+      this._introStartPos = new THREE.Vector3(0, 5.95, 0.5);
+      this._introStartTarget = new THREE.Vector3(0, 0, 0.5);
+      this._introFov = 50;
+    }
+
     this._camera.fov = this._introFov;
+    this._camera.position.copy(this._introStartPos);
+    this._camera.lookAt(this._introStartTarget);
     this._introActive = false;
     this._introStartTime = 0;
-    this._introDuration = 2.8; // seconds
+    this._introDuration = 1.8;
     this._camera.updateProjectionMatrix();
   }
 
-  // Cinematic intro: FOV 90 → 21 with easeInOutCubic
   _startIntro() {
     if (this._introActive || this._introDone) return;
     this._introActive = true;
@@ -118,31 +130,38 @@ class SceneManager {
     if (!this._introActive) return;
 
     const elapsed = t - this._introStartTime;
-    let progress = Math.min(elapsed / this._introDuration, 1);
+    const progress = Math.min(elapsed / this._introDuration, 1);
 
-    // easeOutExpo — fast start, dramatic slow finish (cinematic pull-in)
-    const eased = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+    // Pure linear. Constant speed. No easing.
+    this._camera.position.lerpVectors(this._introStartPos, this._baseCameraPos, progress);
 
-    this._camera.fov = this._introFov + (this._targetFov - this._introFov) * eased;
+    // Gentle arc — swings from slightly right to center as it descends
+    const arc = Math.sin(progress * Math.PI) * 1.2;
+    this._camera.position.x += arc;
 
-    // Subtle camera drift down during zoom (settling into position)
-    const driftY = (1 - eased) * 0.3;
-    this._camera.position.y = this._baseCameraPos.y + driftY + this._mouse.y * 0.08;
+    const currentTarget = new THREE.Vector3().lerpVectors(this._introStartTarget, this._baseCameraTarget, progress);
+    this._camera.lookAt(currentTarget);
 
+    this._camera.fov = this._introFov + (this._targetFov - this._introFov) * progress;
     this._camera.updateProjectionMatrix();
 
-    // Power on the CRT midway through the zoom (40% in)
-    if (progress > 0.4 && !this._screenPoweringOn && !this._screenPoweredOn) {
+    // CRT powers on at 55%
+    if (progress > 0.55 && !this._screenPoweringOn && !this._screenPoweredOn) {
       this._screenPoweringOn = true;
       this._screenOnProgress = 0;
-      // Reveal the NFT grid in sync with CRT power-on
-      if (window._shedApp && window._shedApp.revealGrid) window._shedApp.revealGrid();
+      const mp = document.getElementById('marketplace');
+      if (mp) mp.classList.add('revealed');
+      setTimeout(() => {
+        if (window._shedApp && window._shedApp.revealGrid) window._shedApp.revealGrid();
+      }, 400);
     }
 
     if (progress >= 1) {
       this._introActive = false;
       this._introDone = true;
       this._camera.fov = this._targetFov;
+      this._camera.position.copy(this._baseCameraPos);
+      this._camera.lookAt(this._baseCameraTarget);
       this._camera.updateProjectionMatrix();
     }
   }
@@ -308,8 +327,8 @@ class SceneManager {
     // ─── WOOD FLOOR (DK planks running into screen) ───
     const floorGroup = new THREE.Group();
     const plankW = 0.6;
-    const plankCount = 14;
-    const floorDepth = 12;
+    const plankCount = 44;
+    const floorDepth = 18;
 
     // Share 3 textures across all planks (saves ~11 texture generations)
     const floorTexPool = [0, 1, 2].map(i => {
@@ -358,7 +377,7 @@ class SceneManager {
     const wallGroup = new THREE.Group();
     const wallPlankH = 0.45;
     const wallPlankCount = 10;
-    const wallW = 10;
+    const wallW = 20;
     const wallZ = -3.5;
 
     // Share 3 textures across all wall planks
@@ -397,17 +416,17 @@ class SceneManager {
 
     // ─── CEILING (dark beams) ───
     const ceilMat = new THREE.MeshStandardMaterial({ color: 0x1A0E04, roughness: 0.9 });
-    const ceilGeo = new THREE.BoxGeometry(wallW, 0.1, 8);
+    const ceilGeo = new THREE.BoxGeometry(20, 0.1, 8);
     const ceiling = new THREE.Mesh(ceilGeo, ceilMat);
-    ceiling.position.set(0, 4.5, -1);
+    ceiling.position.set(0, 6, -1);
     this._scene.add(ceiling);
 
     // Cross beams
     const beamMat = new THREE.MeshStandardMaterial({ color: 0x3A2010, roughness: 0.8 });
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 14; i++) {
       const beamGeo = new THREE.BoxGeometry(0.15, 0.2, 8);
       const beam = new THREE.Mesh(beamGeo, beamMat);
-      beam.position.set(-3 + i * 1.5, 4.4, -1);
+      beam.position.set(-10 + i * 1.5, 5.9, -1);
       beam.castShadow = true;
       this._scene.add(beam);
     }
@@ -463,20 +482,45 @@ class SceneManager {
     this._buildLantern(-2.5, 3.0, 0.5);
     this._buildLantern(2.5, 3.0, 0.5);
 
-    // ─── FRAMED PUPPETS on wall ───
-    // Real Bitcoin Puppets on the wall — loaded from ordinals.com
-    const wallPuppets = [
-      '790088daaf0a16b756bacbb8f636dbefb76ce0b753ab18057f196ace902d5effi0', // #9205 Wizard Hat
-      '9a4e74444435604f9fbc0e742e379961574b6f3174bbf4c123cb81d418f1136bi0', // #5122 Opium Cap
-      '2fc3b614beb5af22cd09fa9abf7beff719da953524175dd8924e7d9d2c5e0eebi0', // #3222 VR
-      '56636ffca4c65b73b46003682d9f8ba10e8af0a8012adebf40f0c849c0b16084i0', // #656 Mi Vida Loca
-      '84d2d1cfc9b0eace65762e2181b5dfb48995fd28e60c22a0e6eac5539daf13f1i0', // #4617 Dark Shades
+    // ─── FRAMED PUPPETS & OPIUM on walls ───
+    // Salon-style gallery wall — all unique, ~90% puppets / ~10% OPIUM
+    const wallArt = [
+      // ── Far left cluster ──
+      { x: -8.2, y: 2.3, tilt: 0.03, id: 'a4ff5b9518fe1abb7a7fdbed4e015a842757e491a61d4efb2266c8d0a6581eb9i0' },
+      { x: -8.0, y: 3.4, tilt: -0.04, id: '1edd323c21245b52f5c501dbfcebb7c373269236c626f21cdf22486177c43d73i0' },
+      { x: -7.0, y: 2.8, tilt: -0.02, id: 'db52aedec9ed58d640639d84447eccac766e8d591d8d76c69785efb462bc3240i0' },
+      { x: -6.8, y: 1.6, tilt: 0.05, id: '5ed9c51d2cf566cb95f482d59fcc9c37441c47ff6291d663318de03dcb500b58i0' }, // OPIUM
+      { x: -5.8, y: 3.2, tilt: 0.02, id: '743ef68772b2bad0dc89ee183c8e4ef30e9323601236876db9f77c92c7dc8ebci0' },
+      { x: -5.6, y: 2.1, tilt: -0.03, id: 'dc87ce1caca5ab3449daf60ea5363be107ce31fb091916b8063a7974bd5997b0i0' },
+      // ── Left of center ──
+      { x: -4.3, y: 2.6, tilt: 0.04, id: '301f47a13ab67c21f3c869c417ffa1a3c484abeaa8c3c618ece77523d9b11f94i0' },
+      { x: -4.1, y: 3.5, tilt: -0.02, id: 'e4520773d3d7a182ed4bd8875626419db5db3ec73fcacd4cc48ad060afb02a30i0' },
+      { x: -3.2, y: 1.8, tilt: -0.05, id: 'abff81d75b0dc256edc38dd773dabf3cf624d9ce087709e69e6af4f65a7d0d8ei0' },
+      // ── Center-left ──
+      { x: -2.5, y: 2.8, tilt: -0.05, id: '790088daaf0a16b756bacbb8f636dbefb76ce0b753ab18057f196ace902d5effi0' },
+      { x: -1.5, y: 3.1, tilt: 0.03, id: '9a4e74444435604f9fbc0e742e379961574b6f3174bbf4c123cb81d418f1136bi0' },
+      // ── Center (above bench) ──
+      { x: 0.0, y: 2.6, tilt: -0.02, id: '2fc3b614beb5af22cd09fa9abf7beff719da953524175dd8924e7d9d2c5e0eebi0' },
+      { x: 0.8, y: 3.3, tilt: 0.03, id: 'bb7e246b534e98cffd3a7ccd1dec370a471728ab6c14b8f060711784bf8509f9i0' },
+      // ── Center-right ──
+      { x: 1.5, y: 2.9, tilt: 0.04, id: '56636ffca4c65b73b46003682d9f8ba10e8af0a8012adebf40f0c849c0b16084i0' },
+      { x: 2.8, y: 2.7, tilt: -0.03, id: '84d2d1cfc9b0eace65762e2181b5dfb48995fd28e60c22a0e6eac5539daf13f1i0' },
+      { x: 2.6, y: 3.6, tilt: 0.02, id: 'cc842ad72d1bb622736403c232c3a4de5d6ec56fb3669ad519d843a15329983ei0' }, // OPIUM
+      // ── Right cluster ──
+      { x: 3.8, y: 2.2, tilt: -0.04, id: '176ab6d821dc25341c91aa764dc0c3755f30aaf783dc26ad65601a0a4f3304e4i0' },
+      { x: 4.2, y: 3.1, tilt: 0.03, id: '73e39b0a6b429ce89153c77bd4b4a06d082dbcf10720d8f8295e09ffe09a00d0i0' },
+      { x: 5.0, y: 2.7, tilt: -0.02, id: 'f6da7980e1e1d198b2fbd585c03ad9161034f0e882e4c178e7cf6bfe045ca0cei0' },
+      { x: 5.2, y: 1.7, tilt: 0.05, id: '4aa41a4bf0a3feab322207f97ba7d4bc87b1c8e374ee9990674a4e3042aa7dcdi0' },
+      // ── Far right cluster ──
+      { x: 6.0, y: 3.3, tilt: -0.03, id: '58a40ba25c5b2e5e04e1b2ad1abd1df2d89161874807cc276ceea17e48ff1ec2i0' },
+      { x: 6.2, y: 2.2, tilt: 0.04, id: 'b127d9843e62f1cf88f5bf766bdc85f1c378b49059a29845924190ca91e7b8a5i0' }, // OPIUM
+      { x: 7.0, y: 2.8, tilt: -0.02, id: '548adcf32a76ccc3075a4c8aa6c177ec3806a81689ec0962cd43e9e06952faaai0' },
+      { x: 7.2, y: 3.6, tilt: 0.03, id: 'a78fd335090d133649f5fe559ef7fdda79bb032e4e3e758d0ba125225b85139bi0' },
+      { x: 8.0, y: 2.4, tilt: -0.04, id: '79e875190cbe79b47547ab744cade8c7295351763c76ac0e81878070c8f4d474i0' },
     ];
-    this._buildWallFrame(-2.5, 2.8, wallZ + 0.06, 42, -0.05, wallPuppets[0]);
-    this._buildWallFrame(-1.5, 3.0, wallZ + 0.06, 17, 0.03,  wallPuppets[1]);
-    this._buildWallFrame(0.0, 2.6, wallZ + 0.06, 88, -0.02,  wallPuppets[2]);
-    this._buildWallFrame(1.5, 2.9, wallZ + 0.06, 55, 0.04,   wallPuppets[3]);
-    this._buildWallFrame(2.8, 2.7, wallZ + 0.06, 33, -0.03,  wallPuppets[4]);
+    wallArt.forEach((f, i) => {
+      this._buildWallFrame(f.x, f.y, wallZ + 0.06, i * 13 + 7, f.tilt, f.id);
+    });
 
     // Old hardcoded rug removed — replaced by GLB rug prop
 
@@ -589,7 +633,7 @@ class SceneManager {
       {
         name: 'keyboard',
         file: 'public/items/Meshy_AI_Wireless_Keyboard_on__0301025242_texture.glb',
-        pos: [0.1, 0.96, -0.45],
+        pos: [0.1, 0.96, -0.68],
         rot: [-5, 0, 0],
         scale: 0.09
       },
@@ -606,10 +650,24 @@ class SceneManager {
         pos: [0.96, -0.04, -1.15],
         rot: [0, -90, 0],
         scale: [0.07, 0.1, 0.1]
+      },
+      {
+        name: 'sofa',
+        file: 'public/items/Meshy_AI_sofa_0302005917_texture.glb',
+        pos: [-4.94, 0, -0.61],
+        rot: [0, 64, 0],
+        scale: 1.56
+      },
+      {
+        name: 'bitcoinStaff',
+        file: 'public/items/Meshy_AI_bitcoin_staff_0301233932_texture.glb',
+        pos: [-3.2, 0, -2.5],
+        rot: [0, 15, -8],
+        scale: 1.5
       }
     ];
 
-    PROPS.forEach(cfg => {
+    const promises = PROPS.map(cfg => new Promise(resolve => {
       loader.load(cfg.file, (gltf) => {
         const model = gltf.scene;
         model.position.set(...cfg.pos);
@@ -639,10 +697,13 @@ class SceneManager {
 
         // If debug GUI is active, add controls for this prop
         if (this._propsFolder) this._addPropGUI(cfg.name, model);
+        resolve();
       }, undefined, (err) => {
         console.warn(`Failed to load prop ${cfg.name}:`, err.message);
+        resolve(); // don't block intro on a failed prop
       });
-    });
+    }));
+    return Promise.all(promises);
   }
 
   // ─── LIVE CLOCK HANDS ───
@@ -750,7 +811,7 @@ class SceneManager {
         uBootTexture: { value: null },
         uHasBoot: { value: 0 },
         uScreenOn: { value: 0 },
-        uOpacity: { value: 0.69 }
+        uOpacity: { value: 1 }
       },
       transparent: true,
       depthWrite: true,
@@ -843,7 +904,7 @@ class SceneManager {
 
         // Scale and position — tuned via GUI
         crt.scale.setScalar(1.26);
-        crt.position.set(0.1, 1, -1.3);
+        crt.position.set(0.1, 1, -1.65);
         this._scene.add(crt);
 
         this._crtModel = crt;
@@ -1120,7 +1181,7 @@ class SceneManager {
 
         // Scale and position — tuned via GUI
         this._model.scale.setScalar(1.67);
-        this._model.position.set(-1.05, 0.45, 1.25);
+        this._model.position.set(-1.05, 0.47, 1.25);
         this._model.rotation.y = THREE.MathUtils.degToRad(13);
 
         this._modelBasePos.copy(this._model.position);
@@ -1147,21 +1208,22 @@ class SceneManager {
 
         if (this._setupCharGUI) this._setupCharGUI();
 
-        // Hide loading + start cinematic intro
-        setTimeout(() => {
+        // Wait for all props to finish loading, then start intro
+        updateStatus('Setting up the shed...', 92);
+        (this._propsReady || Promise.resolve()).then(() => {
           updateStatus('Welcome to the Shed!', 100);
-          const loading = document.getElementById('scene-loading');
-          if (loading) {
-            loading.classList.add('hidden');
-            setTimeout(() => loading.style.display = 'none', 600);
-          }
-          // Start the FOV zoom intro
-          this._startIntro();
-          // Show first bubble after zoom settles
           setTimeout(() => {
-            if (window._shedApp) window._shedApp.showInitialBubble();
-          }, 1800);
-        }, 400);
+            const loading = document.getElementById('scene-loading');
+            if (loading) {
+              loading.classList.add('hidden');
+              setTimeout(() => loading.style.display = 'none', 600);
+            }
+            this._startIntro();
+            setTimeout(() => {
+              if (window._shedApp) window._shedApp.showInitialBubble();
+            }, 1800);
+          }, 400);
+        });
       },
       (progress) => {
         if (progress.total > 0) {
@@ -1178,7 +1240,9 @@ class SceneManager {
             loading.classList.add('hidden');
             setTimeout(() => loading.style.display = 'none', 600);
           }
-          // Reveal grid as fallback when 3D scene fails to load
+          // Fallback reveal
+          const mp = document.getElementById('marketplace');
+          if (mp) mp.classList.add('revealed');
           if (window._shedApp && window._shedApp.revealGrid) window._shedApp.revealGrid();
         }, 1000);
       }
@@ -1641,13 +1705,10 @@ class SceneManager {
     // Cinematic intro zoom
     this._updateIntro(t);
 
-    // Camera subtle sway
-    if (this._camera) {
+    // Camera subtle sway (only after intro finishes — intro controls camera fully)
+    if (this._camera && !this._introActive) {
       this._camera.position.x = this._baseCameraPos.x + this._mouse.x * 0.15;
-      // Only apply mouse Y sway if intro isn't controlling Y
-      if (!this._introActive) {
-        this._camera.position.y = this._baseCameraPos.y + this._mouse.y * 0.08;
-      }
+      this._camera.position.y = this._baseCameraPos.y + this._mouse.y * 0.08;
       this._camera.lookAt(this._baseCameraTarget);
     }
 
@@ -1707,7 +1768,7 @@ class SceneManager {
       for (let i = 0; i < pos.count; i++) {
         let y = pos.getY(i) + speeds[i];
         let x = pos.getX(i) + Math.sin(t + i) * 0.001;
-        if (y > 4.5) {
+        if (y > 6) {
           y = 0.5;
           x = (Math.random() - 0.5) * 8;
         }
