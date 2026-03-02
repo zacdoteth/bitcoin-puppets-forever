@@ -88,9 +88,9 @@ class SceneManager {
 
   _applyResponsiveCamera() {
     if (this._isMobile) {
-      this._targetFov = 28;
-      this._baseCameraPos.set(0, 1.8, 7.5);
-      this._baseCameraTarget.set(0, 1.5, 0);
+      this._targetFov = 48;
+      this._baseCameraPos.set(0, 2.0, 7.5);
+      this._baseCameraTarget.set(0, 1.2, 0);
     } else {
       this._targetFov = 21;
       this._baseCameraPos.set(0, 1.8, 6);
@@ -103,7 +103,7 @@ class SceneManager {
     if (this._isMobile) {
       this._introStartPos = new THREE.Vector3(0, 5.95, 0.5);
       this._introStartTarget = new THREE.Vector3(0, 0, 0.5);
-      this._introFov = 55;
+      this._introFov = 65;
     } else {
       this._introStartPos = new THREE.Vector3(0, 5.95, 0.5);
       this._introStartTarget = new THREE.Vector3(0, 0, 0.5);
@@ -169,8 +169,8 @@ class SceneManager {
   // ─── SCENE ───
   _initScene() {
     this._scene = new THREE.Scene();
-    this._scene.background = new THREE.Color('#0c0803');
-    this._scene.fog = new THREE.FogExp2('#1a1208', 0.045);
+    this._scene.background = new THREE.Color('#1a0e04');
+    this._scene.fog = new THREE.FogExp2('#1a0e04', 0.04);
   }
 
   // ─── LIGHTS (warm amber DK shop feel) ───
@@ -324,16 +324,25 @@ class SceneManager {
       pmrem.dispose();
     } catch(e) { console.warn('Env map skipped:', e); }
 
+    // ─── BASE FLOOR (dark wood safety net — catches any gaps the planks don't cover) ───
+    const baseFloorGeo = new THREE.PlaneGeometry(100, 100);
+    const baseFloorMat = new THREE.MeshStandardMaterial({ color: 0x1a0e04, roughness: 0.95 });
+    const baseFloor = new THREE.Mesh(baseFloorGeo, baseFloorMat);
+    baseFloor.rotation.x = -Math.PI / 2;
+    baseFloor.position.set(0, -0.08, 0);
+    baseFloor.receiveShadow = true;
+    this._scene.add(baseFloor);
+
     // ─── WOOD FLOOR (DK planks running into screen) ───
     const floorGroup = new THREE.Group();
     const plankW = 0.6;
-    const plankCount = 44;
-    const floorDepth = 18;
+    const plankCount = 80;
+    const floorDepth = 50;
 
     // Share 3 textures across all planks (saves ~11 texture generations)
     const floorTexPool = [0, 1, 2].map(i => {
       const t = this._generateWoodTexture(i * 13 + 7);
-      t.repeat.set(1, 8);
+      t.repeat.set(1, 12);
       return t;
     });
 
@@ -358,7 +367,7 @@ class SceneManager {
       }
 
       const plank = new THREE.Mesh(plankGeo, plankMat);
-      plank.position.set(x, -0.03, -floorDepth / 2 + 2);
+      plank.position.set(x, -0.03, -floorDepth / 2 + 5);
       plank.receiveShadow = true;
       floorGroup.add(plank);
 
@@ -367,7 +376,7 @@ class SceneManager {
         const gapGeo = new THREE.BoxGeometry(0.025, 0.01, floorDepth);
         const gapMat = new THREE.MeshStandardMaterial({ color: 0x1a0e04, roughness: 1 });
         const gap = new THREE.Mesh(gapGeo, gapMat);
-        gap.position.set(x + plankW / 2, 0.001, -floorDepth / 2 + 2);
+        gap.position.set(x + plankW / 2, 0.001, -floorDepth / 2 + 5);
         floorGroup.add(gap);
       }
     }
@@ -414,17 +423,92 @@ class SceneManager {
     }
     this._scene.add(wallGroup);
 
+    // ─── OUTER WALLS (dark wood shell — the "outside" of the house) ───
+    // No inner side walls — wide open room. These outer walls catch the void on ultrawide.
+    // Hallway = the open space between the photo back wall and these outer walls.
+    const outerX = 18;
+    const outerDepth = 40;
+    const outerHeight = 7;
+    const outerPlankH = 0.5;
+    const outerPlankCount = Math.ceil(outerHeight / outerPlankH);
+    const outerStart = -15;
+
+    const outerTexPool = [0, 1, 2].map(i => {
+      const t = this._generateWoodTexture(i * 31 + 111, 256, 128, true);
+      t.repeat.set(10, 1);
+      return t;
+    });
+
+    for (const side of [-1, 1]) {
+      const outerGroup = new THREE.Group();
+      const xPos = side * outerX;
+
+      for (let i = 0; i < outerPlankCount; i++) {
+        const y = i * outerPlankH + 0.1;
+        const outerTex = outerTexPool[i % 3];
+
+        const opGeo = new THREE.BoxGeometry(0.12, outerPlankH - 0.02, outerDepth);
+        const opMat = new THREE.MeshStandardMaterial({
+          map: outerTex,
+          roughness: 0.9,
+          metalness: 0.0
+        });
+        const op = new THREE.Mesh(opGeo, opMat);
+        op.position.set(xPos, y, outerStart + outerDepth / 2);
+        outerGroup.add(op);
+
+        if (i < outerPlankCount - 1) {
+          const gGeo = new THREE.BoxGeometry(0.04, 0.02, outerDepth);
+          const gMat = new THREE.MeshStandardMaterial({ color: 0x060301, roughness: 1 });
+          const g = new THREE.Mesh(gGeo, gMat);
+          g.position.set(xPos + side * 0.04, y + outerPlankH / 2, outerStart + outerDepth / 2);
+          outerGroup.add(g);
+        }
+      }
+      this._scene.add(outerGroup);
+    }
+
+    // ─── OUTER BACK WALL (behind the photo wall, closing the back) ───
+    const outerBackWallW = outerX * 2;
+    for (let i = 0; i < outerPlankCount; i++) {
+      const y = i * outerPlankH + 0.1;
+      const outerTex = outerTexPool[i % 3];
+      const obGeo = new THREE.BoxGeometry(outerBackWallW, outerPlankH - 0.02, 0.12);
+      const obMat = new THREE.MeshStandardMaterial({
+        map: outerTex,
+        roughness: 0.9,
+        metalness: 0.0
+      });
+      const ob = new THREE.Mesh(obGeo, obMat);
+      ob.position.set(0, y, outerStart);
+      this._scene.add(ob);
+    }
+
+    // ─── OUTER CEILING (covers hallway + room) ───
+    const outerCeilMat = new THREE.MeshStandardMaterial({ color: 0x120904, roughness: 0.95 });
+    const outerCeilGeo = new THREE.BoxGeometry(outerX * 2 + 0.5, 0.1, outerDepth);
+    const outerCeil = new THREE.Mesh(outerCeilGeo, outerCeilMat);
+    outerCeil.position.set(0, outerHeight, outerStart + outerDepth / 2);
+    this._scene.add(outerCeil);
+
+    // ─── DIM HALLWAY LIGHTS (warm glow in the open space flanking the room) ───
+    for (const side of [-1, 1]) {
+      const hallLight = new THREE.PointLight('#FFD080', 2.0, 12, 2);
+      hallLight.position.set(side * 14, 4, 0);
+      this._scene.add(hallLight);
+    }
+
     // ─── CEILING (dark beams) ───
     const ceilMat = new THREE.MeshStandardMaterial({ color: 0x1A0E04, roughness: 0.9 });
-    const ceilGeo = new THREE.BoxGeometry(20, 0.1, 8);
+    const ceilGeo = new THREE.BoxGeometry(20, 0.1, 20);
     const ceiling = new THREE.Mesh(ceilGeo, ceilMat);
     ceiling.position.set(0, 6, -1);
     this._scene.add(ceiling);
 
-    // Cross beams
+    // Cross beams (main room only)
     const beamMat = new THREE.MeshStandardMaterial({ color: 0x3A2010, roughness: 0.8 });
     for (let i = 0; i < 14; i++) {
-      const beamGeo = new THREE.BoxGeometry(0.15, 0.2, 8);
+      const beamGeo = new THREE.BoxGeometry(0.15, 0.2, 20);
       const beam = new THREE.Mesh(beamGeo, beamMat);
       beam.position.set(-10 + i * 1.5, 5.9, -1);
       beam.castShadow = true;
@@ -627,8 +711,8 @@ class SceneManager {
         name: 'atm',
         file: 'public/items/Meshy_AI_Bitcoin_ATM_Machine_C_0301033547_texture.glb',
         pos: [-3.67, -0.12, -3],
-        rot: [0, 15, 0],
-        scale: 2.83
+        rot: [0, 14.9999, 0],
+        scale: 2.96
       },
       {
         name: 'keyboard',
@@ -661,9 +745,23 @@ class SceneManager {
       {
         name: 'bitcoinStaff',
         file: 'public/items/Meshy_AI_bitcoin_staff_0301233932_texture.glb',
-        pos: [-3.2, 0, -2.5],
-        rot: [0, 15, -8],
-        scale: 1.5
+        pos: [-4.86, 0, -2.5],
+        rot: [-10, -7, -8],
+        scale: 2.37
+      },
+      {
+        name: 'lamboBed',
+        file: 'public/items/Meshy_AI_Orange_Supercar_Bed_0302023753_texture.glb',
+        pos: [5.82, 0, -0.03],
+        rot: [0, 12, 0],
+        scale: 1.35
+      },
+      {
+        name: 'miningRig',
+        file: 'public/items/Meshy_AI_Bitcoin_Mining_Rig_0302021802_texture.glb',
+        pos: [5, -0.12, -2.79],
+        rot: [0, 180, 0],
+        scale: 2.96
       }
     ];
 
@@ -758,9 +856,9 @@ class SceneManager {
 
   _addPropGUI(name, model) {
     const f = this._propsFolder.addFolder(name);
-    f.add(model.position, 'x', -5, 5, 0.01).name('X');
+    f.add(model.position, 'x', -15, 15, 0.01).name('X');
     f.add(model.position, 'y', -1, 4, 0.01).name('Y');
-    f.add(model.position, 'z', -5, 5, 0.01).name('Z');
+    f.add(model.position, 'z', -10, 10, 0.01).name('Z');
     const rotProxy = {
       rotX: THREE.MathUtils.radToDeg(model.rotation.x),
       rotY: THREE.MathUtils.radToDeg(model.rotation.y),
@@ -811,7 +909,7 @@ class SceneManager {
         uBootTexture: { value: null },
         uHasBoot: { value: 0 },
         uScreenOn: { value: 0 },
-        uOpacity: { value: 1 }
+        uOpacity: { value: 0.8 }
       },
       transparent: true,
       depthWrite: true,
