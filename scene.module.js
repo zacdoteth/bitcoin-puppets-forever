@@ -324,26 +324,11 @@ class SceneManager {
       pmrem.dispose();
     } catch(e) { console.warn('Env map skipped:', e); }
 
-    // ─── BASE FLOOR (wood-textured safety net — covers everything the planks don't) ───
-    const baseFloorTex = this._generateWoodTexture(999, 256, 256, true);
-    baseFloorTex.repeat.set(40, 40);
-    const baseFloorGeo = new THREE.PlaneGeometry(200, 200);
-    const baseFloorMat = new THREE.MeshStandardMaterial({
-      map: baseFloorTex,
-      roughness: 0.85,
-      metalness: 0.01
-    });
-    const baseFloor = new THREE.Mesh(baseFloorGeo, baseFloorMat);
-    baseFloor.rotation.x = -Math.PI / 2;
-    baseFloor.position.set(0, -0.07, 0);
-    baseFloor.receiveShadow = true;
-    this._scene.add(baseFloor);
-
-    // ─── WOOD FLOOR (DK planks — detailed center area) ───
+    // ─── WOOD FLOOR (DK planks running into screen) ───
     const floorGroup = new THREE.Group();
     const plankW = 0.6;
-    const plankCount = 70;
-    const floorDepth = 40;
+    const plankCount = 140;
+    const floorDepth = 80;
 
     // Share 3 textures across all planks (saves ~11 texture generations)
     const floorTexPool = [0, 1, 2].map(i => {
