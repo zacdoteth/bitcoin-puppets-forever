@@ -661,7 +661,12 @@ function buildShopkeeperDialogue(nft) {
     priceLine = offerLines[(h >>> 12) % offerLines.length];
   }
 
-  return `${intro} ${nft.name} — ${displayRarity}.${traitLine}${priceLine}`;
+  // Keep it short — intro + trait OR price, not everything
+  if (isListed) {
+    return `${intro}${traitLine} ${priceLine}`;
+  } else {
+    return `${intro}${traitLine}${priceLine}`;
+  }
 }
 
 function showRPGDialogue(nft) {
@@ -699,9 +704,9 @@ function showRPGDialogue(nft) {
     textEl.textContent += ch;
     idx++;
 
-    let delay = 22;
-    if ('.!?'.includes(ch)) delay = 180;
-    else if (',;:—'.includes(ch)) delay = 90;
+    let delay = 16;
+    if ('.!?'.includes(ch)) delay = 100;
+    else if (',;:—'.includes(ch)) delay = 50;
 
     rpgTypeTimer = setTimeout(typeNext, delay);
   }

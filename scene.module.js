@@ -97,25 +97,25 @@ class SceneManager {
       this._baseCameraTarget.set(0, 1.5, 0);
     }
 
-    // ── Overhead drone shot → pan down ──
-    // Camera starts directly above the scene looking straight down (top of puppet's head).
-    // Pure linear interpolation to final position. No easing. Constant velocity.
+    // ── Epic overhead → slow descent ──
+    // Start high and wide, showing the entire room — every prop, the back wall art,
+    // both sides of the shed. Then slowly glide down to eye level.
     if (this._isMobile) {
-      this._introStartPos = new THREE.Vector3(0, 5.95, 0.5);
-      this._introStartTarget = new THREE.Vector3(0, 0, 0.5);
-      this._introFov = 65;
+      this._introStartPos = new THREE.Vector3(0, 8, 1);
+      this._introStartTarget = new THREE.Vector3(0, 0, -0.5);
+      this._introFov = 50;
     } else {
-      this._introStartPos = new THREE.Vector3(0, 5.95, 0.5);
-      this._introStartTarget = new THREE.Vector3(0, 0, 0.5);
+      this._introStartPos = new THREE.Vector3(0, 8, 1);
+      this._introStartTarget = new THREE.Vector3(0, 0, -0.5);
       this._introFov = 50;
     }
 
-    this._camera.fov = this._introFov;
+    this._camera.fov = this._targetFov;
     this._camera.position.copy(this._introStartPos);
     this._camera.lookAt(this._introStartTarget);
     this._introActive = false;
     this._introStartTime = 0;
-    this._introDuration = 1.8;
+    this._introDuration = 3.0;
     this._camera.updateProjectionMatrix();
   }
 
@@ -130,23 +130,41 @@ class SceneManager {
     if (!this._introActive) return;
 
     const elapsed = t - this._introStartTime;
-    const progress = Math.min(elapsed / this._introDuration, 1);
+    const linear = Math.min(elapsed / this._introDuration, 1);
 
-    // Pure linear. Constant speed. No easing.
-    this._camera.position.lerpVectors(this._introStartPos, this._baseCameraPos, progress);
+    // Smooth ease-out — fast start, gentle landing
+    const progress = 1 - Math.pow(1 - linear, 2.5);
 
-    // Gentle arc — swings from slightly right to center as it descends
-    const arc = Math.sin(progress * Math.PI) * 1.2;
-    this._camera.position.x += arc;
+    // Orbital sweep: camera starts ~90° to the left, overhead,
+    // then sweeps around and descends to final eye-level position.
+    // Orbit around the scene center (0, 0, 0)
+    const startAngle = -Math.PI / 2; // 90° left
+    const endAngle = 0;              // straight on (final pos)
+    const angle = startAngle + (endAngle - startAngle) * progress;
+
+    // Blend radius + height from start (overhead orbit) to end (final pos)
+    const startRadius = 8;  // distance from center at start
+    const endRadius = this._baseCameraPos.length(); // final distance
+    const radius = startRadius + (endRadius - startRadius) * progress;
+
+    const startY = this._introStartPos.y;
+    const endY = this._baseCameraPos.y;
+    const y = startY + (endY - startY) * progress;
+
+    this._camera.position.set(
+      Math.sin(angle) * radius,
+      y,
+      Math.cos(angle) * radius
+    );
 
     const currentTarget = new THREE.Vector3().lerpVectors(this._introStartTarget, this._baseCameraTarget, progress);
     this._camera.lookAt(currentTarget);
 
-    this._camera.fov = this._introFov + (this._targetFov - this._introFov) * progress;
+    this._camera.fov = this._targetFov;
     this._camera.updateProjectionMatrix();
 
-    // CRT powers on at 55%
-    if (progress > 0.55 && !this._screenPoweringOn && !this._screenPoweredOn) {
+    // CRT powers on at 65%
+    if (progress > 0.65 && !this._screenPoweringOn && !this._screenPoweredOn) {
       this._screenPoweringOn = true;
       this._screenOnProgress = 0;
       const mp = document.getElementById('marketplace');
@@ -156,7 +174,7 @@ class SceneManager {
       }, 400);
     }
 
-    if (progress >= 1) {
+    if (linear >= 1) {
       this._introActive = false;
       this._introDone = true;
       this._camera.fov = this._targetFov;
@@ -419,7 +437,7 @@ class SceneManager {
     // Hallway = the open space between the photo back wall and these outer walls.
     const outerX = 18;
     const outerDepth = 40;
-    const outerHeight = 7;
+    const outerHeight = 10;
     const outerPlankH = 0.5;
     const outerPlankCount = Math.ceil(outerHeight / outerPlankH);
     const outerStart = -15;
@@ -493,7 +511,7 @@ class SceneManager {
     const ceilMat = new THREE.MeshStandardMaterial({ color: 0x1A0E04, roughness: 0.9 });
     const ceilGeo = new THREE.BoxGeometry(20, 0.1, 20);
     const ceiling = new THREE.Mesh(ceilGeo, ceilMat);
-    ceiling.position.set(0, 6, -1);
+    ceiling.position.set(0, 9, -1);
     this._scene.add(ceiling);
 
     // Cross beams (main room only)
@@ -501,7 +519,7 @@ class SceneManager {
     for (let i = 0; i < 14; i++) {
       const beamGeo = new THREE.BoxGeometry(0.15, 0.2, 20);
       const beam = new THREE.Mesh(beamGeo, beamMat);
-      beam.position.set(-10 + i * 1.5, 5.9, -1);
+      beam.position.set(-10 + i * 1.5, 8.9, -1);
       beam.castShadow = true;
       this._scene.add(beam);
     }
