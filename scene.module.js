@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 // Post-processing imports removed — bloom strength was 0, saving 3 extra render passes per frame
 // GUI loaded dynamically only when ?debug is in URL
 
@@ -662,6 +663,7 @@ class SceneManager {
   // ─── SHED PROPS (GLB items from traits) ───
   _loadProps() {
     const loader = new GLTFLoader();
+    loader.setMeshoptDecoder(MeshoptDecoder);
     this._props = {};
 
     const PROPS = [
@@ -925,6 +927,7 @@ class SceneManager {
 
   _loadCRTMonitor() {
     const loader = new GLTFLoader();
+    loader.setMeshoptDecoder(MeshoptDecoder);
 
     // Create the screen shader material — placed directly on the CRT glass face
     const screenMat = new THREE.ShaderMaterial({
@@ -1277,6 +1280,7 @@ class SceneManager {
   // ─── MODEL LOADING ───
   _loadModel() {
     const loader = new GLTFLoader();
+    loader.setMeshoptDecoder(MeshoptDecoder);
     const loadingBar = document.getElementById('loading-bar-fill');
     const loadingStatus = document.getElementById('loading-status');
 
