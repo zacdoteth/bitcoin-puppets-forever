@@ -92,9 +92,9 @@ class SceneManager {
       this._baseCameraPos.set(0, 1.8, 6.3);
       this._baseCameraTarget.set(0, 1.5, 0);
     } else {
-      this._targetFov = 21;
-      this._baseCameraPos.set(0, 1.8, 6);
-      this._baseCameraTarget.set(0, 1.5, 0);
+      this._targetFov = 18;
+      this._baseCameraPos.set(0, 1.8, 6.3);
+      this._baseCameraTarget.set(-0.7, 1.7, 0);
     }
 
     // ── Epic overhead → slow descent ──
@@ -163,24 +163,27 @@ class SceneManager {
     this._camera.fov = this._targetFov;
     this._camera.updateProjectionMatrix();
 
-    // CRT powers on at 65%
-    if (progress > 0.65 && !this._screenPoweringOn && !this._screenPoweredOn) {
-      this._screenPoweringOn = true;
-      this._screenOnProgress = 0;
-      const mp = document.getElementById('marketplace');
-      if (mp) mp.classList.add('revealed');
-      setTimeout(() => {
-        if (window._shedApp && window._shedApp.revealGrid) window._shedApp.revealGrid();
-      }, 400);
-    }
-
     if (linear >= 1) {
       this._introActive = false;
       this._introDone = true;
-      this._camera.fov = this._targetFov;
-      this._camera.position.copy(this._baseCameraPos);
-      this._camera.lookAt(this._baseCameraTarget);
-      this._camera.updateProjectionMatrix();
+
+      // CRT powers on the moment we land — Nintendo timing
+      if (!this._screenPoweringOn && !this._screenPoweredOn) {
+        setTimeout(() => {
+          this._screenPoweringOn = true;
+          this._screenOnProgress = 0;
+        }, 300); // tiny beat after landing, then *click*
+
+        // Reveal marketplace slightly after screen starts
+        setTimeout(() => {
+          const mp = document.getElementById('marketplace');
+          if (mp) mp.classList.add('revealed');
+        }, 600);
+
+        setTimeout(() => {
+          if (window._shedApp && window._shedApp.revealGrid) window._shedApp.revealGrid();
+        }, 1000);
+      }
     }
   }
 
@@ -918,7 +921,7 @@ class SceneManager {
         uBootTexture: { value: null },
         uHasBoot: { value: 0 },
         uScreenOn: { value: 0 },
-        uOpacity: { value: 0.8 }
+        uOpacity: { value: 0.75 }
       },
       transparent: true,
       depthWrite: true,
@@ -1010,8 +1013,8 @@ class SceneManager {
         const crt = gltf.scene;
 
         // Scale and position — tuned via GUI
-        crt.scale.setScalar(1.26);
-        crt.position.set(0.1, 1, -1.65);
+        crt.scale.setScalar(1.55);
+        crt.position.set(0.05, 1, -1.65);
         this._scene.add(crt);
 
         this._crtModel = crt;

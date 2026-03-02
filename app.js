@@ -782,10 +782,7 @@ function selectNFT(nft) {
   // Highlight active card
   updateActiveCard();
 
-  // Scroll to top of scene on mobile
-  if (window.innerWidth < 768) {
-    document.getElementById('scene-container').scrollIntoView({ behavior: 'smooth' });
-  }
+  // On mobile, don't scroll — RPG dialog is a fixed bottom sheet
 }
 
 function deselectNFT() {
