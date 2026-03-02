@@ -1075,6 +1075,58 @@ function showTxToast(msg, type = '', duration = 4000) {
   }
 }
 
+// ═══ FEE ESTIMATION (mempool.space) ═══
+const ESTIMATED_TX_VBYTES = 250; // Typical PSBT buy tx size
+let liveFees = null; // { fastestFee, halfHourFee, hourFee } in sat/vB
+
+async function fetchMempoolFees() {
+  try {
+    const res = await fetch('https://mempool.space/api/v1/fees/recommended');
+    if (!res.ok) throw new Error(`mempool.space ${res.status}`);
+    liveFees = await res.json();
+    console.log('Live fees:', liveFees);
+    return liveFees;
+  } catch (err) {
+    console.warn('Fee estimation failed, using fallback:', err.message);
+    liveFees = { fastestFee: 20, halfHourFee: 10, hourFee: 5 };
+    return liveFees;
+  }
+}
+
+function calcNetworkFee(feeRateKey) {
+  if (!liveFees) return 0.00015; // fallback
+  const satPerVB = liveFees[feeRateKey] || liveFees.halfHourFee || 10;
+  return (satPerVB * ESTIMATED_TX_VBYTES) / 1e8;
+}
+
+function updateDrawerBreakdown() {
+  if (!drawerNFT) return;
+  const feeRate = getSelectedFeeRate();
+  const priceBTC = drawerNFT.priceBTC || (drawerNFT.price / 1e8);
+  const shedFee = priceBTC * 0.02;
+  const netFee = calcNetworkFee(feeRate);
+  const total = priceBTC + shedFee + netFee;
+
+  document.getElementById('drawer-price').textContent = priceBTC.toFixed(5) + ' BTC';
+  document.getElementById('drawer-shedfee').textContent = shedFee.toFixed(5) + ' BTC';
+  document.getElementById('drawer-netfee').textContent = '~' + netFee.toFixed(5) + ' BTC';
+  document.getElementById('drawer-total').textContent = total.toFixed(5) + ' BTC';
+  document.getElementById('drawer-total-usd').textContent = '\u2248 $' + Math.round(total * btcUsd).toLocaleString();
+
+  // Update pill labels with sat/vB rates
+  if (liveFees) {
+    const pills = document.querySelectorAll('#fee-rate-options .pay-pill');
+    pills.forEach(pill => {
+      const key = pill.dataset.fee;
+      const rate = liveFees[key];
+      if (rate != null) {
+        const labels = { fastestFee: 'Fast', halfHourFee: 'Medium', hourFee: 'Economy' };
+        pill.textContent = `${labels[key]} ${rate} sat/vB`;
+      }
+    });
+  }
+}
+
 // ═══ BUY DRAWER FLOW ═══
 let drawerNFT = null;
 let drawerStep = 'review'; // review | sign | done
@@ -1101,21 +1153,13 @@ function openBuyDrawer(nft) {
   rarEl.style.borderColor = rc + '40';
   rarEl.style.background = rc + '15';
 
-  // Populate price breakdown
-  const priceBTC = nft.priceBTC || (nft.price / 1e8);
-  const shedFee = priceBTC * 0.02;
-  const netFee = 0.00015;
-  const total = priceBTC + shedFee + netFee;
-
-  document.getElementById('drawer-price').textContent = priceBTC.toFixed(5) + ' BTC';
-  document.getElementById('drawer-shedfee').textContent = shedFee.toFixed(5) + ' BTC';
-  document.getElementById('drawer-netfee').textContent = '~' + netFee.toFixed(5) + ' BTC';
-  document.getElementById('drawer-total').textContent = total.toFixed(5) + ' BTC';
-  document.getElementById('drawer-total-usd').textContent = '\u2248 $' + Math.round(total * btcUsd).toLocaleString();
-
-  // Reset steps
+  // Show drawer immediately with fallback fees, then update with live data
+  updateDrawerBreakdown();
   setDrawerStep('review');
   drawer.style.display = 'flex';
+
+  // Fetch live fees from mempool.space and refresh breakdown
+  fetchMempoolFees().then(() => updateDrawerBreakdown());
 }
 
 function closeBuyDrawer() {
@@ -1284,13 +1328,19 @@ function initBuyPanel() {
 
       // Update signing step subtitle with current status
       const signingSub = document.getElementById('signing-sub');
-      if (signingSub && (status === 'preparing' || status === 'sign')) {
+      if (signingSub && (status === 'preparing' || status === 'sign' || status === 'broadcasting')) {
         signingSub.textContent = data?.message || msgs[status];
+      }
+
+      // Update signing title for broadcasting phase
+      const signingTitle = document.getElementById('signing-title');
+      if (signingTitle && status === 'broadcasting') {
+        signingTitle.textContent = 'Broadcasting...';
       }
     });
   }
 
-  // Fee rate pills
+  // Fee rate pills — switch active + recalculate breakdown
   const feeRateOpts = document.getElementById('fee-rate-options');
   if (feeRateOpts) {
     feeRateOpts.addEventListener('click', (e) => {
@@ -1298,6 +1348,7 @@ function initBuyPanel() {
       if (!pill || pill.disabled) return;
       feeRateOpts.querySelectorAll('.pay-pill').forEach(p => p.classList.remove('active'));
       pill.classList.add('active');
+      updateDrawerBreakdown();
     });
   }
 

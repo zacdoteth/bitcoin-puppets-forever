@@ -114,6 +114,32 @@ window._wallet = (() => {
       }
     },
 
+    okx: {
+      name: 'OKX',
+      icon: '⬛',
+      accent: '#FFFFFF',
+      check: () => !!window.okxwallet?.bitcoin,
+      installUrl: 'https://www.okx.com/web3',
+      async connect() {
+        const result = await window.okxwallet.bitcoin.requestAccounts();
+        const address = result[0];
+        const pubKey = await window.okxwallet.bitcoin.getPublicKey();
+        return {
+          address,
+          ordinalAddress: address,
+          publicKey: pubKey,
+          provider: window.okxwallet.bitcoin,
+          providerName: 'okx'
+        };
+      },
+      async signPsbt(psbtHex, opts = {}) {
+        return window.okxwallet.bitcoin.signPsbt(psbtHex, {
+          autoFinalized: opts.autoFinalize !== false,
+          toSignInputs: opts.inputsToSign || undefined
+        });
+      }
+    },
+
     leather: {
       name: 'Leather',
       icon: '🟫',

@@ -66,7 +66,7 @@ class SceneManager {
     });
     this._renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     this._renderer.toneMapping = THREE.LinearToneMapping;
-    this._renderer.toneMappingExposure = 2.01;
+    this._renderer.toneMappingExposure = 1.73;
     this._renderer.outputColorSpace = THREE.SRGBColorSpace;
     if (this._quality === 'high') {
       this._renderer.shadowMap.enabled = true;
@@ -213,7 +213,7 @@ class SceneManager {
   // ─── LIGHTS (warm amber DK shop feel) ───
   _initLights() {
     // Hemisphere — warm ground bounce
-    this._hemiLight = new THREE.HemisphereLight('#FFD8A0', '#4A2A14', 1.66);
+    this._hemiLight = new THREE.HemisphereLight('#ffd8a0', '#4a2a14', 1.48);
     this._scene.add(this._hemiLight);
 
     // KEY — warm amber sunlight through window
@@ -234,24 +234,24 @@ class SceneManager {
     this._scene.add(this._keyLight);
 
     // FILL — cool blue hint from left
-    this._fillLight = new THREE.DirectionalLight('#A0B8D0', 0.15);
+    this._fillLight = new THREE.DirectionalLight('#a0b8d0', 0.85);
     this._fillLight.position.set(-4, 2, 2);
     this._scene.add(this._fillLight);
 
     // RIM — orange back-edge
-    this._rimLight = new THREE.DirectionalLight('#F7931A', 0.8);
+    this._rimLight = new THREE.DirectionalLight('#f7931a', 2.6);
     this._rimLight.position.set(-2, 4, -3);
     this._scene.add(this._rimLight);
 
     // LANTERN point lights (left and right)
-    this._lanternL = new THREE.PointLight('#FFD080', 5.3, 9, 2);
+    this._lanternL = new THREE.PointLight('#ffd080', 5.7, 9, 2);
     this._lanternL.position.set(-2.5, 3.2, 0.5);
     this._scene.add(this._lanternL);
 
-    this._lanternR = new THREE.PointLight('#FFD080', 5.3, 9, 2);
+    this._lanternR = new THREE.PointLight('#ffd080', 5.7, 9, 2);
     this._lanternR.position.set(2.5, 3.6, 0.5);
     this._scene.add(this._lanternR);
-    this._lanternBaseIntensity = 5.3;
+    this._lanternBaseIntensity = 5.7;
 
     // CRT monitor glow
     this._crtLight = new THREE.PointLight('#00ff44', 4.6, 5.5, 0.5);
@@ -1535,13 +1535,12 @@ class SceneManager {
     // ═══ LANTERN LIGHTS ═══
     if (this._lanternL) {
       const lFolder = gui.addFolder('Lanterns');
-      const lanternProxy = { intensity: 3, distance: this._lanternL.distance, decay: this._lanternL.decay };
+      const lanternProxy = { intensity: this._lanternBaseIntensity, distance: this._lanternL.distance, decay: this._lanternL.decay };
       const lColor = { color: c2h(this._lanternL.color) };
       lFolder.add(lanternProxy, 'intensity', 0, 10, 0.1).name('Base Intensity').onChange(v => {
         // Store for flicker reference
         this._lanternBaseIntensity = v;
       });
-      this._lanternBaseIntensity = 3;
       lFolder.addColor(lColor, 'color').name('Color').onChange(v => { this._lanternL.color.set(v); this._lanternR.color.set(v); });
       lFolder.add(lanternProxy, 'distance', 1, 20, 0.5).name('Distance').onChange(v => { this._lanternL.distance = v; this._lanternR.distance = v; });
       lFolder.add(lanternProxy, 'decay', 0, 5, 0.1).name('Decay').onChange(v => { this._lanternL.decay = v; this._lanternR.decay = v; });
@@ -1928,7 +1927,7 @@ class SceneManager {
 
     // Lantern flicker
     if (this._lanternL) {
-      const lBase = this._lanternBaseIntensity || 3;
+      const lBase = this._lanternBaseIntensity || 5.7;
       this._lanternL.intensity = lBase + Math.sin(t * 3.1) * 0.3 + Math.sin(t * 7.3) * 0.15;
       this._lanternR.intensity = lBase + Math.sin(t * 2.7 + 1) * 0.3 + Math.sin(t * 6.1 + 2) * 0.15;
     }
