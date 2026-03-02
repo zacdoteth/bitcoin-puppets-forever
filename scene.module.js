@@ -82,20 +82,36 @@ class SceneManager {
     this._baseCameraPos = new THREE.Vector3();
     this._baseCameraTarget = new THREE.Vector3();
     this._applyResponsiveCamera();
-    this._camera.position.copy(this._baseCameraPos);
-    this._camera.lookAt(this._baseCameraTarget);
+    // Camera starts at intro position (set inside _applyResponsiveCamera) — don't override
   }
 
   _applyResponsiveCamera() {
     if (this._isMobile) {
-      this._targetFov = 23;
-      this._baseCameraPos.set(0, 1.8, 6.3);
-      this._baseCameraTarget.set(0, 1.5, 0);
+      // Browse (zoomed out) — see the full shed
+      this._browseFov = 30;
+      this._browseCameraPos = new THREE.Vector3(0, 1.85, 7.8);
+      this._browseCameraTarget = new THREE.Vector3(0, 1.45, 0);
+      // Selected (zoomed in) — focus on puppet + CRT
+      this._selectedFov = 23;
+      this._selectedCameraPos = new THREE.Vector3(0, 1.8, 6.3);
+      this._selectedCameraTarget = new THREE.Vector3(0, 1.5, 0);
     } else {
-      this._targetFov = 18;
-      this._baseCameraPos.set(0, 1.8, 6.3);
-      this._baseCameraTarget.set(-0.7, 1.7, 0);
+      // Browse (zoomed out) — from debug GUI screenshot
+      this._browseFov = 22;
+      this._browseCameraPos = new THREE.Vector3(0.5, 2, 7.2);
+      this._browseCameraTarget = new THREE.Vector3(-0.5, 1.4, -5);
+      // Selected (zoomed in) — tight punch-in on puppet + CRT
+      this._selectedFov = 15;
+      this._selectedCameraPos = new THREE.Vector3(0.5, 2, 7.2);
+      this._selectedCameraTarget = new THREE.Vector3(-1.1, 1.4, -5);
     }
+
+    // Start in browse mode
+    this._targetFov = this._browseFov;
+    this._baseCameraPos.copy(this._browseCameraPos);
+    this._baseCameraTarget.copy(this._browseCameraTarget);
+    this._cameraLerp = 0; // 0 = at target, used for smooth transitions
+    this._cameraTransitioning = false;
 
     // ── Epic overhead → slow descent ──
     // Start high and wide, showing the entire room — every prop, the back wall art,
@@ -136,15 +152,15 @@ class SceneManager {
     const progress = 1 - Math.pow(1 - linear, 2.5);
 
     // Orbital sweep: camera starts ~90° to the left, overhead,
-    // then sweeps around and descends to final eye-level position.
-    // Orbit around the scene center (0, 0, 0)
+    // then sweeps around and descends to land EXACTLY at browse camera position.
     const startAngle = -Math.PI / 2; // 90° left
-    const endAngle = 0;              // straight on (final pos)
+    // End angle computed from browse camera XZ so we land precisely
+    const endAngle = Math.atan2(this._baseCameraPos.x, this._baseCameraPos.z);
     const angle = startAngle + (endAngle - startAngle) * progress;
 
-    // Blend radius + height from start (overhead orbit) to end (final pos)
-    const startRadius = 8;  // distance from center at start
-    const endRadius = this._baseCameraPos.length(); // final distance
+    // Radius from XZ only (Y handled separately)
+    const startRadius = 8;
+    const endRadius = Math.sqrt(this._baseCameraPos.x ** 2 + this._baseCameraPos.z ** 2);
     const radius = startRadius + (endRadius - startRadius) * progress;
 
     const startY = this._introStartPos.y;
@@ -724,7 +740,7 @@ class SceneManager {
         file: 'public/items/Meshy_AI_Bitcoin_ATM_Machine_C_0301033547_texture.glb',
         pos: [-3.67, -0.12, -3],
         rot: [0, 14.9999, 0],
-        scale: 2.96
+        scale: 3.25
       },
       {
         name: 'keyboard',
@@ -964,13 +980,15 @@ class SceneManager {
             float vig = 1.0 - 0.2 * length(vUv - 0.5);
             col *= vig;
           } else if (uHasBoot > 0.5) {
-            // Pad the smile image inward (0.0 = full bleed, higher = more padding)
-            float pad = 0.016;
-            vec2 paddedUv = vUv * (1.0 - pad * 2.0) + pad;
+            // Shrink smile image with padding around edges
+            float pad = 0.2;
+            vec2 shrunkUv = (vUv - pad) / (1.0 - pad * 2.0);
             col = bg;
-            // Only sample texture inside the padded region
-            if (paddedUv.x > 0.0 && paddedUv.x < 1.0 && paddedUv.y > 0.0 && paddedUv.y < 1.0) {
-              col = texture2D(uBootTexture, paddedUv).rgb;
+            // Only draw the bright (white) parts of smile on top of CRT bg
+            if (shrunkUv.x > 0.0 && shrunkUv.x < 1.0 && shrunkUv.y > 0.0 && shrunkUv.y < 1.0) {
+              vec3 tex = texture2D(uBootTexture, shrunkUv).rgb;
+              float brightness = max(tex.r, max(tex.g, tex.b));
+              col = mix(bg, tex, smoothstep(0.15, 0.4, brightness));
             }
             // Gentle CRT warmth + scanlines
             col *= 0.90 + 0.10 * sin(vUv.y * 200.0);
@@ -1290,9 +1308,9 @@ class SceneManager {
         const center = box.getCenter(new THREE.Vector3());
 
         // Scale and position — tuned via GUI
-        this._model.scale.setScalar(1.67);
-        this._model.position.set(-1.05, 0.47, 1.25);
-        this._model.rotation.y = THREE.MathUtils.degToRad(13);
+        this._model.scale.setScalar(2.18);
+        this._model.position.set(-1.1, 0.2, 0.75);
+        this._model.rotation.y = THREE.MathUtils.degToRad(12);
 
         this._modelBasePos.copy(this._model.position);
         this._modelBaseRot.copy(this._model.rotation);
@@ -1313,7 +1331,7 @@ class SceneManager {
 
         // Hardcoded head offset based on known model geometry
         // (bounding box can be skewed by arms/bunny ears)
-        this._headOffsetY = 1.7;
+        this._headOffsetY = 2.2;
         this._bubbleVec = new THREE.Vector3();
 
         if (this._setupCharGUI) this._setupCharGUI();
@@ -1743,6 +1761,31 @@ class SceneManager {
     return lines.join('\n');
   }
 
+  // ─── CAMERA ZOOM TRANSITIONS ───
+  _zoomToSelected() {
+    if (this._introActive) return;
+    this._cameraFromPos = this._baseCameraPos.clone();
+    this._cameraFromTarget = this._baseCameraTarget.clone();
+    this._cameraFromFov = this._camera.fov;
+    this._cameraToPos = this._selectedCameraPos.clone();
+    this._cameraToTarget = this._selectedCameraTarget.clone();
+    this._cameraToFov = this._selectedFov;
+    this._cameraLerp = 0;
+    this._cameraTransitioning = true;
+  }
+
+  _zoomToBrowse() {
+    if (this._introActive) return;
+    this._cameraFromPos = this._baseCameraPos.clone();
+    this._cameraFromTarget = this._baseCameraTarget.clone();
+    this._cameraFromFov = this._camera.fov;
+    this._cameraToPos = this._browseCameraPos.clone();
+    this._cameraToTarget = this._browseCameraTarget.clone();
+    this._cameraToFov = this._browseFov;
+    this._cameraLerp = 0;
+    this._cameraTransitioning = true;
+  }
+
   // ─── PUBLIC API ───
   setSelectedNFT(nft) {
     this._selectedNFT = nft;
@@ -1763,6 +1806,12 @@ class SceneManager {
     if (this._crtLight) {
       this._crtLight.color.set(nft ? (nft.col === 'OPIUM' ? '#ff6b2b' : '#00ff44') : '#00ff44');
       this._crtLight.intensity = nft ? 4.6 : 4.6;
+    }
+    // Trigger camera zoom
+    if (nft) {
+      this._zoomToSelected();
+    } else {
+      this._zoomToBrowse();
     }
   }
 
@@ -1815,10 +1864,23 @@ class SceneManager {
     // Cinematic intro zoom
     this._updateIntro(t);
 
+    // Camera zoom transition (smooth lerp between browse/selected states)
+    if (this._cameraTransitioning && this._camera) {
+      this._cameraLerp = Math.min(this._cameraLerp + dt * 1.8, 1); // ~0.55s
+      // easeOutCubic for a satisfying settle
+      const p = 1 - Math.pow(1 - this._cameraLerp, 3);
+      this._baseCameraPos.lerpVectors(this._cameraFromPos, this._cameraToPos, p);
+      this._baseCameraTarget.lerpVectors(this._cameraFromTarget, this._cameraToTarget, p);
+      this._camera.fov = this._cameraFromFov + (this._cameraToFov - this._cameraFromFov) * p;
+      this._camera.updateProjectionMatrix();
+      if (this._cameraLerp >= 1) this._cameraTransitioning = false;
+    }
+
     // Camera subtle sway (only after intro finishes — intro controls camera fully)
     if (this._camera && !this._introActive) {
       this._camera.position.x = this._baseCameraPos.x + this._mouse.x * 0.15;
       this._camera.position.y = this._baseCameraPos.y + this._mouse.y * 0.08;
+      this._camera.position.z = this._baseCameraPos.z;
       this._camera.lookAt(this._baseCameraTarget);
     }
 

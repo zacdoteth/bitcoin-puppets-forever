@@ -177,6 +177,7 @@ async function fetchPuppetsFromHiro(offset = 0, limit = 60) {
         price: 0,
         priceBTC: 0,
         rarity: t.sat_rarity || 'common',
+        traitsFull: (meta.attributes || []).filter(a => a.value).slice(0, 8),
         traits: (meta.attributes || []).map(a => a.value).filter(Boolean).slice(0, 6),
         col: 'Puppets',
         imageUrl: getImageURL(t.id),
@@ -317,7 +318,7 @@ function showBubble(msg, duration = 5000, instant = false) {
   if (instant) {
     b.textContent = msg;
     b.classList.add('show');
-    bubbleTimer = setTimeout(() => b.classList.remove('show'), duration);
+    if (duration > 0) bubbleTimer = setTimeout(() => b.classList.remove('show'), duration);
     return;
   }
 
@@ -331,7 +332,7 @@ function showBubble(msg, duration = 5000, instant = false) {
   function typeNext() {
     if (idx >= chars.length) {
       setTimeout(() => { b.textContent = msg; }, 300);
-      bubbleTimer = setTimeout(() => b.classList.remove('show'), duration);
+      if (duration > 0) bubbleTimer = setTimeout(() => b.classList.remove('show'), duration);
       return;
     }
     const ch = chars[idx];
@@ -489,46 +490,86 @@ function buildShopkeeperDialogue(nft) {
   // ── Part 1: Rarity intro (Cranky Kong item shop energy) ──
   const intros = {
     common: [
-      "Ah, good eye!",
-      "A classic right here.",
-      "Solid puppet, this one.",
-      "Can't go wrong with it.",
+      "Ah, a classic.",
+      "Can't go wrong here.",
+      "Every collection needs one.",
+      "Clean and simple.",
+      "Back to basics.",
+      "The people's puppet.",
+      "Don't sleep on the commons.",
+      "Good vibes on this one.",
+      "A staple of the shed.",
+      "Humble but honest.",
+      "Always a fan of this one.",
+      "Bread and butter right here.",
     ],
     uncommon: [
-      "Ooh, nice pick!",
-      "This one's a cut above.",
+      "Ooh, uncommon!",
+      "A little extra on this one.",
       "Don't see this every day.",
-      "Got a little something extra.",
+      "Stands out from the crowd.",
+      "Uncommon for a reason.",
+      "This one's different.",
+      "Has that spark.",
+      "Subtle flex right here.",
+      "A step above the rest.",
+      "Nice pick!",
     ],
     rare: [
-      "Now we're talking!",
-      "Heh, you found a rare one.",
-      "This doesn't sit on the shelf long.",
+      "Now we're talking.",
+      "You found a rare one!",
+      "Doesn't sit on the shelf long.",
       "Sharp eye, fren.",
+      "Getting into the good stuff.",
+      "Rare air right here.",
+      "They don't make many of these.",
+      "You know what you're looking at.",
+      "Quality, through and through.",
+      "This is the one.",
     ],
     epic: [
       "Whoa — epic!",
-      "THIS one's got serious character.",
-      "Check this out, fren.",
-      "Now that's special.",
+      "Serious character on this one.",
+      "Check this out.",
+      "Now THAT's special.",
+      "Stop everything. Look at this.",
+      "I've been waiting to show this.",
+      "This one hits different.",
+      "Not for the faint of heart.",
+      "The moment you walked in, I knew.",
+      "Chef's kiss.",
     ],
     legendary: [
-      "A legendary piece!",
-      "Oh ho — you found the good stuff.",
-      "Top shelf, this one.",
-      "I keep this behind the counter.",
+      "A legendary!",
+      "You found the good stuff.",
+      "Top shelf. Behind the counter.",
+      "Only bring this out for real ones.",
+      "Legends only.",
+      "Sit down for this one.",
+      "Do you know what you're holding?",
+      "Museum piece right here.",
+      "The grail.",
+      "I keep this locked up.",
     ],
     mythic: [
       "A MYTHIC!",
-      "I was saving this for someone special.",
-      "Don't even know how this got here.",
-      "You have no idea how rare this is.",
+      "Saving this for someone special.",
+      "How did this get here?",
+      "You have NO idea.",
+      "I'm shaking right now.",
+      "Once in a lifetime.",
+      "The prophecy spoke of this one.",
+      "Whispers only.",
     ],
     Genesis: [
-      "Pure O.P.I.U.M.!",
+      "Pure O.P.I.U.M.",
       "Only 777 of these exist.",
-      "Straight from the karmic grid.",
-      "The real deal. Handle with care.",
+      "From the karmic grid.",
+      "Handle with care.",
+      "Straight from the source.",
+      "The original recipe.",
+      "O.P.I.U.M. hits different.",
+      "You feel that? That's the grid.",
     ],
   };
 
@@ -536,182 +577,232 @@ function buildShopkeeperDialogue(nft) {
   const introPool = intros[rarKey] || intros.common;
   const intro = introPool[h % introPool.length];
 
-  // ── Part 2: Trait comment ──
+  // ── Part 2: Pick the COOLEST trait (skip "none" and boring ones) ──
+  const traitReactions = [
+    [/laser/i, [
+      "Laser eyes!",
+      "Got the lasers — stays bullish.",
+      "Pew pew!",
+      "Those lasers mean business.",
+    ]],
+    [/gold/i, [
+      "Gold drip.",
+      "Gold on gold — this one has taste.",
+      "That gold hits different.",
+      "Dripping in gold.",
+    ]],
+    [/crown/i, [
+      "Crowned royalty.",
+      "Wearing the crown.",
+      "Crown on top. Respect.",
+      "All hail.",
+    ]],
+    [/smoke|cig|blunt|joint/i, [
+      "Puffin' away.",
+      "Living its best life.",
+      "Zero stress energy.",
+      "Vibes are immaculate.",
+    ]],
+    [/hoodie/i, [
+      "Hoodie up — builder energy.",
+      "Classic hoodie look.",
+      "The hoodie says it all.",
+      "Dev mode activated.",
+    ]],
+    [/zombie/i, [
+      "Survived every cycle.",
+      "Undead and still here.",
+      "Bear market survivor.",
+      "Can't kill what won't die.",
+    ]],
+    [/ape/i, [
+      "Full ape mode.",
+      "Apes in first, asks later.",
+      "Monke energy.",
+      "Return to monke.",
+    ]],
+    [/pizza/i, [
+      "Pizza! OG vibes.",
+      "10,000 BTC pizza energy.",
+      "Never forget pizza day.",
+      "The most expensive pizza ever.",
+    ]],
+    [/glasses|shades|sunnies|3d/i, [
+      "Too cool for school.",
+      "The shades stay ON.",
+      "Future's bright.",
+      "Drip check: passed.",
+    ]],
+    [/hat|cap|beanie|bucket|fedora|cowboy|helmet/i, [
+      "Love the headwear.",
+      "That hat's got character.",
+      "The hat makes it.",
+      "Top-tier headgear.",
+    ]],
+    [/alien/i, [
+      "Not of this world.",
+      "Interstellar puppet.",
+      "Phone home?",
+      "Greetings, earthling.",
+    ]],
+    [/diamond/i, [
+      "Diamond drip!",
+      "Diamond hands, diamond puppet.",
+      "Pressure makes diamonds.",
+      "Unbreakable.",
+    ]],
+    [/rainbow/i, [
+      "All the colors!",
+      "That rainbow goes hard.",
+      "Full spectrum energy.",
+      "Taste the rainbow.",
+    ]],
+    [/suit|tux/i, [
+      "Suited up. Means business.",
+      "Sharp dressed puppet.",
+      "Came here to close deals.",
+      "Corporate puppet — in a good way.",
+    ]],
+    [/punk|mohawk/i, [
+      "Punk energy!",
+      "Mohawk goes crazy.",
+      "Anarchy vibes.",
+      "No rules, just punk.",
+    ]],
+    [/fire|flame/i, [
+      "This one's on fire!",
+      "Flames on!",
+      "Hot hot hot.",
+      "Literally fire.",
+    ]],
+    [/angel|halo|wings/i, [
+      "An angel among puppets.",
+      "Heavenly.",
+      "Got its wings.",
+      "Blessed.",
+    ]],
+    [/devil|demon|horn/i, [
+      "A little devilish.",
+      "Horns out!",
+      "Bad to the bone.",
+      "Mischief managed.",
+    ]],
+    [/cat|neko/i, [
+      "Cat puppet! Meow.",
+      "Feline energy.",
+      "Purrrfect.",
+      "Nine lives on-chain.",
+    ]],
+    [/robot|cyber|mech/i, [
+      "Beep boop.",
+      "Fully automated.",
+      "Cyborg puppet.",
+      "01110000 01110101 01110000.",
+    ]],
+    [/chain|necklace|pendant/i, [
+      "Chains on!",
+      "Iced out.",
+      "The drip is real.",
+      "Accessorized.",
+    ]],
+    [/eye|eyes/i, [
+      "Those eyes though.",
+      "The eyes tell the story.",
+      "If looks could shill.",
+      "Seen some things.",
+    ]],
+  ];
+
+  // Pick the best trait to comment on — prioritize hand items (funniest)
   let traitLine = '';
-  if (nft.traits && nft.traits.length > 0) {
-    const traitIdx = (h >>> 4) % nft.traits.length;
-    const trait = nft.traits[traitIdx];
-    const tl = trait.toLowerCase();
+  const fullTraits = nft.traitsFull || [];
+  const boringTraits = /^(none|n\/a|default|standard|normal)$/i;
+  const skipTraits = /pipe/i;
+  const validFull = fullTraits.filter(a =>
+    a.value && !boringTraits.test(a.value.trim()) && !skipTraits.test(a.value.trim()) && a.value.trim() !== '' && a.value.trim() !== '-'
+  );
 
-    // Keyword-matched reactions (shopkeeper pointing out features)
-    const traitReactions = [
-      [/laser/i, [
-        "Laser eyes on this one!",
-        "Got the laser eyes — stays bullish.",
-        "Those lasers aren't just for show.",
-      ]],
-      [/gold/i, [
-        "Got the gold drip.",
-        "Gold on gold. This puppet has taste.",
-        "That gold hits different.",
-      ]],
-      [/crown/i, [
-        "Crown on top — royalty.",
-        "Wearing the crown.",
-        "Crowned puppet, top tier.",
-      ]],
-      [/smoke|cig|blunt|joint/i, [
-        "Puffin' away, no worries.",
-        "Got that smoke.",
-        "Living its best life.",
-      ]],
-      [/hoodie/i, [
-        "Hoodie up — builder vibes.",
-        "Classic hoodie look.",
-        "The hoodie says it all.",
-      ]],
-      [/zombie/i, [
-        "Zombie mode — survived every cycle.",
-        "Undead and still here.",
-        "A zombie! Survived the bear market.",
-      ]],
-      [/ape/i, [
-        "Full ape mode.",
-        "An ape among puppets.",
-        "This one apes in first, asks later.",
-      ]],
-      [/pizza/i, [
-        "Pizza! A Bitcoin classic.",
-        "Got that pizza — OG vibes.",
-        "10,000 BTC pizza energy.",
-      ]],
-      [/glasses|shades|sunnies/i, [
-        "Shades on. Too cool.",
-        "Rocking the shades.",
-        "Future's bright with those on.",
-      ]],
-      [/hat|cap|beanie/i, [
-        "Nice hat on this one.",
-        "Love the headwear.",
-        "That hat's got character.",
-      ]],
-      [/alien/i, [
-        "Alien! Not of this world.",
-        "Got that alien look.",
-        "Out of this world, literally.",
-      ]],
-      [/diamond/i, [
-        "Diamond drip!",
-        "Diamonds on this one.",
-        "Diamond hands, diamond puppet.",
-      ]],
-      [/rainbow/i, [
-        "Rainbow vibes!",
-        "All the colors on this one.",
-        "That rainbow goes hard.",
-      ]],
-      [/suit|tux/i, [
-        "Suited up. Means business.",
-        "Sharp suit on this one.",
-        "Came dressed for the occasion.",
-      ]],
-      [/eye|eyes/i, [
-        "Look at those eyes.",
-        "The eyes on this one!",
-        "Those eyes tell a story.",
-      ]],
+  // Priority: 1) hand/item traits, 2) keyword-matched traits, 3) longest/most interesting
+  const handTrait = validFull.find(a =>
+    /hand|item|held|holding|weapon|accessory/i.test(a.trait_type || '')
+  );
+
+  // Also gather valid flat trait values as fallback
+  const validTraits = (nft.traits || []).filter(t =>
+    t && !boringTraits.test(t.trim()) && !skipTraits.test(t.trim()) && t.trim() !== '' && t.trim() !== '-'
+  );
+
+  if (handTrait) {
+    const item = handTrait.value;
+    const handLines = [
+      `Holding a ${item}!`,
+      `Got a ${item} — love it.`,
+      `The ${item} is killing me.`,
+      `Walking around with a ${item}.`,
+      `A ${item}? Classic.`,
+      `That ${item} is everything.`,
+      `Casually rocking a ${item}.`,
+      `The ${item} really ties it together.`,
+      `You see the ${item}? Perfect.`,
+      `Can we talk about the ${item}?`,
     ];
-
-    let matched = false;
-    for (const [regex, lines] of traitReactions) {
-      if (regex.test(tl)) {
-        traitLine = ' ' + lines[(h >>> 8) % lines.length];
-        matched = true;
-        break;
+    traitLine = ' ' + handLines[(h >>> 8) % handLines.length];
+  } else {
+    // Try keyword-matched reactions on all valid traits
+    let bestReaction = null;
+    for (const trait of validTraits) {
+      for (const [regex, lines] of traitReactions) {
+        if (regex.test(trait)) {
+          bestReaction = lines;
+          break;
+        }
       }
+      if (bestReaction) break;
     }
-    if (!matched) {
-      const genericTraitLines = [
-        `Got that ${trait} look.`,
-        `Rocking the ${trait}.`,
-        `${trait} on this one — nice.`,
-        `Love the ${trait}.`,
+
+    if (bestReaction) {
+      traitLine = ' ' + bestReaction[(h >>> 8) % bestReaction.length];
+    } else if (validTraits.length > 0) {
+      // Pick the most interesting trait (longest name = usually most specific)
+      const picked = validTraits.sort((a, b) => b.length - a.length)[0];
+      const genericLines = [
+        `Rocking the ${picked}.`,
+        `The ${picked} goes hard.`,
+        `${picked} — nice touch.`,
+        `Love the ${picked}.`,
+        `That ${picked} though.`,
+        `${picked}? Impeccable taste.`,
+        `Can't go wrong with ${picked}.`,
+        `The ${picked} is everything.`,
       ];
-      traitLine = ' ' + genericTraitLines[(h >>> 8) % genericTraitLines.length];
+      traitLine = ' ' + genericLines[(h >>> 8) % genericLines.length];
     }
   }
 
-  // ── Part 3: Price line ──
-  let priceLine;
+  // Short for speech bubble — intro + trait, mention price if listed
   if (isListed) {
-    const priceLines = [
-      `${priceBtc}\u20bf — about $${priceUsd}.`,
-      `Listed at ${priceBtc}\u20bf ($${priceUsd}).`,
-      `${priceBtc}\u20bf on the tag. $${priceUsd}.`,
-      `Asking ${priceBtc}\u20bf — that's $${priceUsd}.`,
-    ];
-    priceLine = ' ' + priceLines[(h >>> 12) % priceLines.length];
-  } else {
-    const offerLines = [
-      " Not listed — but you could make an offer.",
-      " No price yet. Make an offer?",
-      " Off-market. A good offer might change that.",
-      " Unlisted — the owner's holding tight.",
-    ];
-    priceLine = offerLines[(h >>> 12) % offerLines.length];
+    return `${intro}${traitLine} ${priceBtc}\u20bf.`;
   }
-
-  // Keep it short — intro + trait OR price, not everything
-  if (isListed) {
-    return `${intro}${traitLine} ${priceLine}`;
-  } else {
-    return `${intro}${traitLine}${priceLine}`;
-  }
+  return `${intro}${traitLine}`;
 }
 
 function showRPGDialogue(nft) {
   const dialogue = document.getElementById('rpg-dialogue');
-  const textEl = document.getElementById('rpg-text');
   const choicesEl = document.getElementById('rpg-choices');
-  const advanceEl = document.getElementById('rpg-advance');
-  if (!dialogue || !textEl) return;
+  if (!dialogue) return;
 
   // Reset
   clearTimeout(rpgTypeTimer);
-  textEl.innerHTML = '';
   choicesEl.classList.remove('show');
   choicesEl.innerHTML = '';
-  advanceEl.classList.remove('show');
-  dialogue.classList.add('show');
-  rpgTyping = true;
 
-  // Hide the idle speech bubble during RPG dialogue
-  const bubble = document.getElementById('char-bubble');
-  if (bubble) bubble.classList.remove('show');
-
+  // Speech bubble does the talking — short quip above LeFou's head
   const msg = buildShopkeeperDialogue(nft);
-  const chars = [...msg];
-  let idx = 0;
+  showBubble(msg, 0); // duration 0 = stays until manually hidden
 
-  function typeNext() {
-    if (idx >= chars.length) {
-      rpgTyping = false;
-      // Show choices after typing finishes
-      setTimeout(() => showRPGChoices(nft), 200);
-      return;
-    }
-    const ch = chars[idx];
-    textEl.textContent += ch;
-    idx++;
-
-    let delay = 16;
-    if ('.!?'.includes(ch)) delay = 100;
-    else if (',;:—'.includes(ch)) delay = 50;
-
-    rpgTypeTimer = setTimeout(typeNext, delay);
-  }
-
-  rpgTypeTimer = setTimeout(typeNext, 100);
+  // Show choices after bubble appears (no dialogue box, just floating buttons)
+  dialogue.classList.add('show', 'bubble-mode');
+  setTimeout(() => showRPGChoices(nft), 400);
 }
 
 function showRPGChoices(nft) {
@@ -725,11 +816,11 @@ function showRPGChoices(nft) {
 
   if (isListed) {
     choicesHTML += `<button class="rpg-choice" data-action="buy">Buy for ${priceBtc}\u20bf</button>`;
+  } else {
+    choicesHTML += `<button class="rpg-choice" data-action="offer">Make an Offer</button>`;
   }
 
-  choicesHTML += `<button class="rpg-choice" data-action="offer">Make an Offer</button>`;
-
-  choicesHTML += `<button class="rpg-choice" data-action="look">Just Looking</button>`;
+  choicesHTML += `<button class="rpg-choice rpg-choice-secondary" data-action="look">Just Looking</button>`;
 
   choicesEl.innerHTML = choicesHTML;
   choicesEl.classList.add('show');
@@ -739,12 +830,12 @@ function showRPGChoices(nft) {
     btn.addEventListener('click', () => {
       const action = btn.dataset.action;
       if (action === 'buy') {
-        hideRPGDialogue();
         if (!walletConnected) { openWalletModal(); return; }
+        hideRPGDialogue();
         openBuyDrawer(nft);
       } else if (action === 'offer') {
-        hideRPGDialogue();
         if (!walletConnected) { openWalletModal(); return; }
+        hideRPGDialogue();
         showBubble("Offers coming soon, fren!", 2500, true);
       } else {
         hideRPGDialogue();
@@ -756,9 +847,13 @@ function showRPGChoices(nft) {
 
 function hideRPGDialogue() {
   clearTimeout(rpgTypeTimer);
+  clearTimeout(bubbleTimer);
+  clearTimeout(typewriterTimer);
   rpgTyping = false;
   const dialogue = document.getElementById('rpg-dialogue');
-  if (dialogue) dialogue.classList.remove('show');
+  if (dialogue) dialogue.classList.remove('show', 'bubble-mode');
+  const bubble = document.getElementById('char-bubble');
+  if (bubble) bubble.classList.remove('show');
 }
 
 // ═══ NFT SELECTION ═══
