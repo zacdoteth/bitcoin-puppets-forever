@@ -88,9 +88,9 @@ class SceneManager {
 
   _applyResponsiveCamera() {
     if (this._isMobile) {
-      this._targetFov = 48;
-      this._baseCameraPos.set(0, 2.0, 7.5);
-      this._baseCameraTarget.set(0, 1.2, 0);
+      this._targetFov = 23;
+      this._baseCameraPos.set(0, 1.8, 6.3);
+      this._baseCameraTarget.set(0, 1.5, 0);
     } else {
       this._targetFov = 21;
       this._baseCameraPos.set(0, 1.8, 6);
@@ -324,20 +324,26 @@ class SceneManager {
       pmrem.dispose();
     } catch(e) { console.warn('Env map skipped:', e); }
 
-    // ─── BASE FLOOR (dark wood safety net — catches any gaps the planks don't cover) ───
-    const baseFloorGeo = new THREE.PlaneGeometry(100, 100);
-    const baseFloorMat = new THREE.MeshStandardMaterial({ color: 0x1a0e04, roughness: 0.95 });
+    // ─── BASE FLOOR (wood-textured safety net — covers everything the planks don't) ───
+    const baseFloorTex = this._generateWoodTexture(999, 256, 256, true);
+    baseFloorTex.repeat.set(40, 40);
+    const baseFloorGeo = new THREE.PlaneGeometry(200, 200);
+    const baseFloorMat = new THREE.MeshStandardMaterial({
+      map: baseFloorTex,
+      roughness: 0.85,
+      metalness: 0.01
+    });
     const baseFloor = new THREE.Mesh(baseFloorGeo, baseFloorMat);
     baseFloor.rotation.x = -Math.PI / 2;
-    baseFloor.position.set(0, -0.08, 0);
+    baseFloor.position.set(0, -0.07, 0);
     baseFloor.receiveShadow = true;
     this._scene.add(baseFloor);
 
-    // ─── WOOD FLOOR (DK planks running into screen) ───
+    // ─── WOOD FLOOR (DK planks — detailed center area) ───
     const floorGroup = new THREE.Group();
     const plankW = 0.6;
-    const plankCount = 80;
-    const floorDepth = 50;
+    const plankCount = 70;
+    const floorDepth = 40;
 
     // Share 3 textures across all planks (saves ~11 texture generations)
     const floorTexPool = [0, 1, 2].map(i => {

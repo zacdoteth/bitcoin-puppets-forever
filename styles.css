@@ -936,10 +936,18 @@ body {
 /* ═══ RESPONSIVE ═══ */
 @media (max-width: 768px) {
   .scene-container {
-    height: 50vh;
-    min-height: 280px;
-    max-height: 400px;
+    height: 28vh;
+    min-height: 180px;
+    max-height: 240px;
   }
+
+  .scene-brand {
+    top: 8px;
+    left: 8px;
+  }
+  .logo-icon { width: 22px; height: 22px; }
+  .logo-text { font-size: 0.85rem; }
+  .tagline { display: none; }
 
   .scene-stats {
     top: auto;
@@ -968,6 +976,7 @@ body {
 
 @media (max-width: 480px) {
   .scene-stats { display: none; }
+  .scene-brand { display: none; }
 
   .buy-panel {
     width: calc(100% - 24px);
@@ -977,9 +986,11 @@ body {
   }
 
   .char-bubble {
-    max-width: 260px;
-    font-size: 0.85rem;
-    padding: 10px 14px;
+    max-width: 220px;
+    font-size: 0.75rem;
+    padding: 8px 12px;
+    border-width: 2px;
+    border-radius: 16px;
   }
 
   .nft-grid {
